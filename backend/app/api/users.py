@@ -6,7 +6,7 @@ from app.core.deps import get_current_user, require_admin
 from app.core.passwords import validate_password
 from app.core.security import hash_password
 from app.database import get_db
-from app.models import RecoveryCode, User
+from app.models import CustomRole, RecoveryCode, User
 from app.schemas import UserCreate, UserOut, UserUpdate
 from app.services.audit import log_action
 
@@ -71,6 +71,14 @@ def update_user(
         user.hashed_password = hash_password(body.password)
         user.token_version += 1
         changes["password"] = "reset"
+    if body.custom_role_id is not None:
+        if db.get(CustomRole, body.custom_role_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Кастомну роль не знайдено")
+        user.custom_role_id = body.custom_role_id
+        changes["custom_role_id"] = body.custom_role_id
+    elif body.clear_custom_role:
+        user.custom_role_id = None
+        changes["custom_role_id"] = None
     if body.reset_totp:
         user.totp_enabled = False
         user.totp_secret_encrypted = None

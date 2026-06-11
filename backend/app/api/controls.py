@@ -7,7 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
-from app.core.deps import can_edit_entity, get_current_user, require_manager
+from app.core.deps import can_edit_entity, get_current_user, require_permission
+
+require_control_manager = require_permission("controls", "manage")
+require_control_reader = require_permission("controls", "read")
 from app.database import get_db
 from app.models import Control, Evidence, ImplementationStatus, Requirement, User
 from app.schemas import ControlIn, ControlListItem, ControlOut, EvidenceLinkIn, EvidenceOut
@@ -61,7 +64,7 @@ def _apply_body(db: Session, control: Control, body: ControlIn) -> None:
 @router.get("", response_model=list[ControlListItem])
 def list_controls(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_control_reader),
     status_filter: ImplementationStatus | None = Query(default=None, alias="status"),
     framework_id: int | None = None,
     owner_id: int | None = None,
@@ -86,7 +89,7 @@ def list_controls(
 
 @router.post("", response_model=ControlOut, status_code=status.HTTP_201_CREATED)
 def create_control(
-    body: ControlIn, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    body: ControlIn, db: Session = Depends(get_db), actor: User = Depends(require_control_manager)
 ):
     control = Control(code=next_code(db))
     _apply_body(db, control, body)
@@ -99,7 +102,7 @@ def create_control(
 
 @router.get("/{control_id}", response_model=ControlOut)
 def get_control(
-    control_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    control_id: int, db: Session = Depends(get_db), _: User = Depends(require_control_reader)
 ):
     return _get_control(db, control_id)
 
@@ -112,7 +115,7 @@ def update_control(
     actor: User = Depends(get_current_user),
 ):
     control = _get_control(db, control_id)
-    if not can_edit_entity(actor, control.owner_id):
+    if not can_edit_entity(actor, control.owner_id, "controls"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Ви не є відповідальним за цей контроль")
     _apply_body(db, control, body)
     log_action(db, actor, "update", "control", control.id, {"code": control.code})
@@ -122,7 +125,7 @@ def update_control(
 
 @router.delete("/{control_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_control(
-    control_id: int, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    control_id: int, db: Session = Depends(get_db), actor: User = Depends(require_control_manager)
 ):
     control = _get_control(db, control_id)
     log_action(db, actor, "delete", "control", control.id, {"code": control.code})
@@ -133,7 +136,7 @@ def delete_control(
 # --- Evidence ---
 
 def _check_evidence_access(actor: User, control: Control) -> None:
-    if not can_edit_entity(actor, control.owner_id):
+    if not can_edit_entity(actor, control.owner_id, "controls"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Ви не є відповідальним за цей контроль")
 
 
@@ -203,7 +206,7 @@ def download_evidence(
     control_id: int,
     evidence_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_control_reader),
 ):
     item = db.get(Evidence, evidence_id)
     if item is None or item.control_id != control_id or item.kind != "file":

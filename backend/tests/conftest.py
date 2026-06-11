@@ -6,6 +6,7 @@ os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["ADMIN_EMAIL"] = "admin@example.com"
 os.environ["ADMIN_PASSWORD"] = "admin-password-123"
 os.environ["UPLOAD_DIR"] = tempfile.mkdtemp()
+os.environ["SCHEDULER_ENABLED"] = "false"
 
 import pyotp
 import pytest

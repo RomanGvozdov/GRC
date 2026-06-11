@@ -38,10 +38,13 @@ from app.models.risks import (
     risk_level,
     risk_level_label,
 )
+from app.models.rbac import APIToken, CustomRole
 from app.models.users import RecoveryCode, Role, User
 
 __all__ = [
+    "APIToken",
     "ActionStatus",
+    "CustomRole",
     "ApprovalDecision",
     "Audit",
     "AuditChecklistItem",

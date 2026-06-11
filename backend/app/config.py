@@ -26,6 +26,20 @@ class Settings(BaseSettings):
     # Поріг рівня ризику, вище якого прийняття вимагає затвердження (10 = "високий")
     risk_acceptance_threshold: int = 10
 
+    # Сповіщення. Email вимкнені, поки не задано SMTP_HOST
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "grc@localhost"
+    smtp_starttls: bool = True
+    slack_webhook_url: str = ""
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    base_url: str = ""  # посилання в листах, напр. https://grc.company.ua
+    digest_hour: int = 8  # година щоденного дайджесту (Europe/Kyiv)
+    scheduler_enabled: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

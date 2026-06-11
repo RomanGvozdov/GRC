@@ -14,12 +14,15 @@ from app.api import (
     exports,
     frameworks,
     policies,
+    rbac,
     reports,
     risks,
     users,
 )
+from app.config import get_settings
 from app.database import Base, SessionLocal, engine
 from app.seed import run_seed
+from app.services.notify import send_daily_digest
 
 
 @asynccontextmanager
@@ -27,7 +30,19 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         run_seed(db)
+    scheduler = None
+    if get_settings().scheduler_enabled:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+
+        scheduler = BackgroundScheduler(timezone="Europe/Kyiv")
+        scheduler.add_job(
+            send_daily_digest, CronTrigger(hour=get_settings().digest_hour, minute=0)
+        )
+        scheduler.start()
     yield
+    if scheduler:
+        scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="GRC", version="0.1.0", lifespan=lifespan)
@@ -59,6 +74,7 @@ api_routers = [
     frameworks.router,
     audits.router,
     policies.router,
+    rbac.router,
     reports.router,
     dashboard.router,
     exports.router,

@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.deps import get_current_user
+from app.core.deps import require_permission
+
+require_log_reader = require_permission("audit_log", "read")
 from app.database import get_db
 from app.models import AuditLogEntry, User
 from app.schemas import AuditEntryOut
@@ -13,7 +15,7 @@ router = APIRouter(prefix="/audit-log", tags=["audit"])
 @router.get("", response_model=list[AuditEntryOut])
 def list_audit_log(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_log_reader),
     entity_type: str | None = None,
     user_id: int | None = None,
     limit: int = Query(default=100, le=500),

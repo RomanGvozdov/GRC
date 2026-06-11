@@ -71,9 +71,15 @@ class UserBrief(ORMModel):
     role: Role
 
 
+class CustomRoleBrief(ORMModel):
+    id: int
+    name: str
+
+
 class UserOut(UserBrief):
     is_active: bool
     totp_enabled: bool
+    custom_role: CustomRoleBrief | None = None
     created_at: datetime
 
 
@@ -90,6 +96,8 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
     password: str | None = Field(default=None, min_length=12)
     reset_totp: bool = False
+    custom_role_id: int | None = None
+    clear_custom_role: bool = False
 
 
 # --- Dictionaries ---

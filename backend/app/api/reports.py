@@ -16,7 +16,9 @@ from app.api.exports import (
     STRATEGY_UA,
 )
 from app.api.frameworks import requirement_coverage
-from app.core.deps import get_current_user
+from app.core.deps import require_permission
+
+require_reports = require_permission("reports", "read")
 from app.database import get_db
 from app.models import (
     Audit,
@@ -77,7 +79,7 @@ def _pdf(template_name: str, filename: str, **context) -> StreamingResponse:
 
 
 @router.get("/risk-register")
-def risk_register(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def risk_register(db: Session = Depends(get_db), _: User = Depends(require_reports)):
     risks = db.scalars(
         select(Risk).options(
             selectinload(Risk.category), selectinload(Risk.owner), selectinload(Risk.controls)
@@ -108,7 +110,7 @@ def risk_register(db: Session = Depends(get_db), _: User = Depends(get_current_u
 
 @router.get("/gap-analysis/{framework_id}")
 def gap_analysis_report(
-    framework_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    framework_id: int, db: Session = Depends(get_db), _: User = Depends(require_reports)
 ):
     framework = db.get(Framework, framework_id)
     if framework is None:
@@ -147,7 +149,7 @@ def gap_analysis_report(
 
 @router.get("/audit/{audit_id}")
 def audit_report(
-    audit_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    audit_id: int, db: Session = Depends(get_db), _: User = Depends(require_reports)
 ):
     audit = db.get(
         Audit,
@@ -212,7 +214,7 @@ def audit_report(
 def statement_of_applicability(
     framework_code: str = "iso27001",
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_reports),
 ):
     """Statement of Applicability: вимоги фреймворка × контролі, статус і обґрунтування."""
     framework = db.scalar(select(Framework).where(Framework.code == framework_code))

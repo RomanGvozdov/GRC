@@ -5,7 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
-from app.core.deps import can_edit_entity, get_current_user, require_manager
+from app.core.deps import can_edit_entity, get_current_user, require_permission
+
+require_risk_manager = require_permission("risks", "manage")
+require_risk_reader = require_permission("risks", "read")
 from app.database import get_db
 from app.models import (
     Control,
@@ -26,6 +29,7 @@ from app.schemas import (
     TreatmentActionOut,
 )
 from app.services.audit import log_action
+from app.services.notify import notify_user
 
 router = APIRouter(prefix="/risks", tags=["risks"])
 
@@ -51,7 +55,7 @@ def _get_risk(db: Session, risk_id: int) -> Risk:
 
 
 def _check_edit(user: User, risk: Risk) -> None:
-    if not can_edit_entity(user, risk.owner_id):
+    if not can_edit_entity(user, risk.owner_id, "risks"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Ви не є відповідальним за цей ризик")
 
 
@@ -81,7 +85,7 @@ def _check_acceptance(user: User, risk: Risk, body: RiskIn) -> None:
 @router.get("", response_model=list[RiskBrief])
 def list_risks(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_risk_reader),
     status_filter: RiskStatus | None = Query(default=None, alias="status"),
     category_id: int | None = None,
     owner_id: int | None = None,
@@ -112,7 +116,7 @@ def list_risks(
 
 @router.post("", response_model=RiskOut, status_code=status.HTTP_201_CREATED)
 def create_risk(
-    body: RiskIn, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    body: RiskIn, db: Session = Depends(get_db), actor: User = Depends(require_risk_manager)
 ):
     risk = Risk(code=next_code(db), **body.model_dump(exclude={"treatment_strategy"}))
     risk.status = body.status.value
@@ -123,11 +127,17 @@ def create_risk(
     db.flush()
     log_action(db, actor, "create", "risk", risk.id, {"code": risk.code, "title": risk.title})
     db.commit()
+    if risk.owner_id and risk.owner_id != actor.id:
+        notify_user(
+            db.get(User, risk.owner_id),
+            f"GRC: вам призначено ризик {risk.code}",
+            f"Вас призначено відповідальним за ризик {risk.code} — {risk.title}.",
+        )
     return _get_risk(db, risk.id)
 
 
 @router.get("/{risk_id}", response_model=RiskOut)
-def get_risk(risk_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def get_risk(risk_id: int, db: Session = Depends(get_db), _: User = Depends(require_risk_reader)):
     return _get_risk(db, risk_id)
 
 
@@ -141,6 +151,7 @@ def update_risk(
     risk = _get_risk(db, risk_id)
     _check_edit(actor, risk)
     _check_acceptance(actor, risk, body)
+    previous_owner_id = risk.owner_id
 
     data = body.model_dump()
     data["status"] = body.status.value
@@ -151,12 +162,18 @@ def update_risk(
         setattr(risk, field, value)
     log_action(db, actor, "update", "risk", risk.id, {"code": risk.code})
     db.commit()
+    if risk.owner_id and risk.owner_id not in (previous_owner_id, actor.id):
+        notify_user(
+            db.get(User, risk.owner_id),
+            f"GRC: вам призначено ризик {risk.code}",
+            f"Вас призначено відповідальним за ризик {risk.code} — {risk.title}.",
+        )
     return _get_risk(db, risk_id)
 
 
 @router.delete("/{risk_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_risk(
-    risk_id: int, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    risk_id: int, db: Session = Depends(get_db), actor: User = Depends(require_risk_manager)
 ):
     risk = _get_risk(db, risk_id)
     log_action(db, actor, "delete", "risk", risk.id, {"code": risk.code, "title": risk.title})
@@ -216,6 +233,13 @@ def add_action(
     db.flush()
     log_action(db, actor, "create", "treatment_action", action.id, {"risk": risk.code})
     db.commit()
+    if action.assignee_id and action.assignee_id != actor.id:
+        notify_user(
+            db.get(User, action.assignee_id),
+            f"GRC: нова дія за ризиком {risk.code}",
+            f"Вам призначено дію «{action.title}» за ризиком {risk.code} — {risk.title}"
+            + (f" (дедлайн {action.deadline:%d.%m.%Y})." if action.deadline else "."),
+        )
     return db.get(TreatmentAction, action.id)
 
 
@@ -232,7 +256,10 @@ def update_action(
     if action is None or action.risk_id != risk.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Дію не знайдено")
     # Виконавець може оновлювати дію, якщо відповідає за ризик або призначений на дію
-    if not (can_edit_entity(actor, risk.owner_id) or can_edit_entity(actor, action.assignee_id)):
+    if not (
+        can_edit_entity(actor, risk.owner_id, "risks")
+        or can_edit_entity(actor, action.assignee_id, "risks")
+    ):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Ви не призначені на цю дію")
     action.title = body.title
     action.assignee_id = body.assignee_id
@@ -248,7 +275,7 @@ def delete_action(
     risk_id: int,
     action_id: int,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_risk_manager),
 ):
     action = db.get(TreatmentAction, action_id)
     if action is None or action.risk_id != risk_id:

@@ -3,8 +3,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.deps import get_current_user
+from app.core.permissions import has_permission
 from app.database import get_db
-from app.models import Audit, Comment, Control, Finding, Policy, Risk, Role, User
+from app.models import Audit, Comment, Control, Finding, Policy, Risk, User
 from app.schemas import CommentIn, CommentOut
 from app.services.audit import log_action
 
@@ -16,6 +17,13 @@ _ENTITY_MODELS = {
     "audit": Audit,
     "finding": Finding,
     "policy": Policy,
+}
+_ENTITY_MODULES = {
+    "risk": "risks",
+    "control": "controls",
+    "audit": "audits",
+    "finding": "audits",
+    "policy": "policies",
 }
 
 
@@ -51,8 +59,8 @@ def add_comment(
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ):
-    if actor.role == Role.READER.value:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Читач не може додавати коментарі")
+    if not has_permission(actor, _ENTITY_MODULES[entity_type], "write"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Недостатньо прав для коментування")
     _check_entity(db, entity_type, entity_id)
     comment = Comment(
         entity_type=entity_type, entity_id=entity_id, author_id=actor.id, text=body.text

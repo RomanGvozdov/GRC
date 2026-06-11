@@ -8,7 +8,9 @@ from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.deps import get_current_user
+from app.core.deps import require_permission
+
+require_reports = require_permission("reports", "read")
 from app.database import get_db
 from app.models import Control, Risk, User, risk_level, risk_level_label
 
@@ -135,7 +137,7 @@ def _stream(headers: list[str], rows: list[list], fmt: str, base_name: str) -> S
 def export_risks(
     fmt: str = Query(default="xlsx", pattern="^(xlsx|csv)$"),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_reports),
 ):
     return _stream(RISK_HEADERS, _risk_rows(db), fmt, "risks")
 
@@ -144,6 +146,6 @@ def export_risks(
 def export_controls(
     fmt: str = Query(default="xlsx", pattern="^(xlsx|csv)$"),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_reports),
 ):
     return _stream(CONTROL_HEADERS, _control_rows(db), fmt, "controls")

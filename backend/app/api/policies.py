@@ -8,7 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
-from app.core.deps import get_current_user, require_manager
+from app.core.deps import get_current_user, require_permission
+
+require_policy_manager = require_permission("policies", "manage")
 from app.database import get_db
 from app.models import (
     ApprovalDecision,
@@ -31,6 +33,7 @@ from app.schemas_phase2 import (
     SubmitApprovalIn,
 )
 from app.services.audit import log_action
+from app.services.notify import notify_user
 
 router = APIRouter(prefix="/policies", tags=["policies"])
 
@@ -93,7 +96,7 @@ def list_policies(db: Session = Depends(get_db), actor: User = Depends(get_curre
 
 @router.post("", response_model=PolicyOut, status_code=status.HTTP_201_CREATED)
 def create_policy(
-    body: PolicyIn, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    body: PolicyIn, db: Session = Depends(get_db), actor: User = Depends(require_policy_manager)
 ):
     policy = Policy(
         code=_next_code(db),
@@ -124,7 +127,7 @@ def update_policy(
     policy_id: int,
     body: PolicyIn,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_policy_manager),
 ):
     policy = _get_policy(db, policy_id)
     policy.title = body.title
@@ -143,7 +146,7 @@ def update_content(
     policy_id: int,
     body: PolicyContentIn,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_policy_manager),
 ):
     policy = _get_policy(db, policy_id)
     if policy.status not in _EDITABLE_STATUSES:
@@ -162,7 +165,7 @@ def upload_file(
     policy_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_policy_manager),
 ):
     policy = _get_policy(db, policy_id)
     if policy.status not in _EDITABLE_STATUSES:
@@ -227,7 +230,7 @@ def submit_for_approval(
     policy_id: int,
     body: SubmitApprovalIn,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_policy_manager),
 ):
     policy = _get_policy(db, policy_id)
     if policy.status not in _EDITABLE_STATUSES:
@@ -253,6 +256,13 @@ def submit_for_approval(
         {"approvers": [a.email for a in approvers]},
     )
     db.commit()
+    for approver in approvers:
+        if approver.id != actor.id:
+            notify_user(
+                approver,
+                f"GRC: політика {policy.code} очікує вашого погодження",
+                f"Політику {policy.code} — {policy.title} подано на погодження.",
+            )
     return _out(_get_policy(db, policy_id))
 
 
@@ -295,12 +305,20 @@ def decide(
         {"decision": body.decision.value, "version": version.number},
     )
     db.commit()
+    if policy.owner_id and policy.owner_id != actor.id:
+        decision_ua = "погоджено" if body.decision == ApprovalDecision.APPROVED else "відхилено"
+        notify_user(
+            db.get(User, policy.owner_id),
+            f"GRC: рішення щодо політики {policy.code}",
+            f"{actor.full_name}: {decision_ua} політику {policy.code} — {policy.title}."
+            + (f"\nКоментар: {body.comment}" if body.comment else ""),
+        )
     return _out(_get_policy(db, policy_id))
 
 
 @router.post("/{policy_id}/activate", response_model=PolicyOut)
 def activate(
-    policy_id: int, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    policy_id: int, db: Session = Depends(get_db), actor: User = Depends(require_policy_manager)
 ):
     policy = _get_policy(db, policy_id)
     if policy.status != PolicyStatus.APPROVED.value:
@@ -314,7 +332,7 @@ def activate(
 
 @router.post("/{policy_id}/new-version", response_model=PolicyOut)
 def new_version(
-    policy_id: int, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    policy_id: int, db: Session = Depends(get_db), actor: User = Depends(require_policy_manager)
 ):
     """Створює нову редакцію (статус «переглядається»); попередня версія лишається в історії."""
     policy = _get_policy(db, policy_id)
@@ -338,7 +356,7 @@ def new_version(
 
 @router.post("/{policy_id}/archive", response_model=PolicyOut)
 def archive(
-    policy_id: int, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    policy_id: int, db: Session = Depends(get_db), actor: User = Depends(require_policy_manager)
 ):
     policy = _get_policy(db, policy_id)
     policy.status = PolicyStatus.ARCHIVED.value
@@ -354,7 +372,7 @@ def assign_acks(
     policy_id: int,
     body: AssignAcksIn,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_policy_manager),
 ):
     policy = _get_policy(db, policy_id)
     if policy.status != PolicyStatus.ACTIVE.value:
@@ -371,6 +389,15 @@ def assign_acks(
             added += 1
     log_action(db, actor, "assign_acks", "policy", policy.id, {"added": added})
     db.commit()
+    for target in users:
+        if target.id in existing or target.id == actor.id:
+            continue
+        notify_user(
+            target,
+            f"GRC: ознайомтеся з політикою {policy.code}",
+            f"Вам призначено ознайомлення з політикою {policy.code} — {policy.title}. "
+            f"Підтвердьте ознайомлення в системі.",
+        )
     return _out(_get_policy(db, policy_id))
 
 
@@ -396,7 +423,7 @@ def acknowledge(
 
 @router.delete("/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_policy(
-    policy_id: int, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    policy_id: int, db: Session = Depends(get_db), actor: User = Depends(require_policy_manager)
 ):
     policy = _get_policy(db, policy_id)
     if policy.status != PolicyStatus.DRAFT.value:

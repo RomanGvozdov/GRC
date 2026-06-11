@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core.passwords import validate_password
+from app.core.permissions import effective_permissions
 from app.core.deps import get_current_user, get_totp_setup_user
 from app.core.security import (
     create_access_token,
@@ -35,6 +36,7 @@ from app.schemas import (
     TotpVerifyResponse,
     UserOut,
 )
+from app.schemas_phase3 import MeOut
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -190,6 +192,8 @@ def change_password(
     return {"detail": "Пароль змінено. Увійдіть знову"}
 
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me", response_model=MeOut)
 def me(user: User = Depends(get_current_user)):
-    return user
+    data = MeOut.model_validate(user)
+    data.permissions = effective_permissions(user)
+    return data

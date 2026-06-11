@@ -27,6 +27,11 @@ class User(Base):
     totp_secret_encrypted: Mapped[str | None] = mapped_column(String(512))
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Кастомна роль (RBAC): якщо задана, її дозволи мають пріоритет над role
+    custom_role_id: Mapped[int | None] = mapped_column(
+        ForeignKey("custom_roles.id", ondelete="SET NULL")
+    )
+
     failed_logins: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Інкремент анулює всі видані токени ("вийти з усіх пристроїв")
@@ -37,6 +42,7 @@ class User(Base):
     recovery_codes: Mapped[list["RecoveryCode"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    custom_role = relationship("CustomRole")
 
 
 class RecoveryCode(Base):

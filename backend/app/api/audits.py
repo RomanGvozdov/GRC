@@ -3,7 +3,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.risks import next_code as next_risk_code
-from app.core.deps import can_edit_entity, get_current_user, require_manager
+from app.core.deps import can_edit_entity, get_current_user, require_permission
+
+require_audit_manager = require_permission("audits", "manage")
+require_audit_reader = require_permission("audits", "read")
 from app.database import get_db
 from app.models import (
     Audit,
@@ -25,6 +28,7 @@ from app.schemas_phase2 import (
     FindingOut,
 )
 from app.services.audit import log_action
+from app.services.notify import notify_user
 
 router = APIRouter(prefix="/audits", tags=["audits"])
 
@@ -66,13 +70,13 @@ def _apply(audit: Audit, body: AuditIn) -> None:
 
 
 @router.get("", response_model=list[AuditBrief])
-def list_audits(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def list_audits(db: Session = Depends(get_db), _: User = Depends(require_audit_reader)):
     return db.scalars(select(Audit).order_by(Audit.id.desc())).all()
 
 
 @router.post("", response_model=AuditOut, status_code=status.HTTP_201_CREATED)
 def create_audit(
-    body: AuditIn, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    body: AuditIn, db: Session = Depends(get_db), actor: User = Depends(require_audit_manager)
 ):
     audit = Audit(code=_next_audit_code(db))
     _apply(audit, body)
@@ -84,7 +88,7 @@ def create_audit(
 
 
 @router.get("/{audit_id}", response_model=AuditOut)
-def get_audit(audit_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def get_audit(audit_id: int, db: Session = Depends(get_db), _: User = Depends(require_audit_reader)):
     return _get_audit(db, audit_id)
 
 
@@ -93,7 +97,7 @@ def update_audit(
     audit_id: int,
     body: AuditIn,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_audit_manager),
 ):
     audit = _get_audit(db, audit_id)
     _apply(audit, body)
@@ -104,7 +108,7 @@ def update_audit(
 
 @router.delete("/{audit_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_audit(
-    audit_id: int, db: Session = Depends(get_db), actor: User = Depends(require_manager)
+    audit_id: int, db: Session = Depends(get_db), actor: User = Depends(require_audit_manager)
 ):
     audit = _get_audit(db, audit_id)
     log_action(db, actor, "delete", "audit", audit.id, {"code": audit.code})
@@ -118,7 +122,7 @@ def delete_audit(
 def generate_checklist(
     audit_id: int,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_audit_manager),
 ):
     """Створює пункти чек-листа з вимог фреймворка аудиту (пропускає вже додані)."""
     audit = _get_audit(db, audit_id)
@@ -148,7 +152,7 @@ def add_checklist_item(
     audit_id: int,
     body: ChecklistItemIn,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_audit_manager),
 ):
     audit = _get_audit(db, audit_id)
     item = AuditChecklistItem(
@@ -171,7 +175,7 @@ def update_checklist_item(
 ):
     audit = _get_audit(db, audit_id)
     # Заповнювати чек-лист може менеджер або призначений аудитор
-    if not (can_edit_entity(actor, audit.auditor_id)):
+    if not can_edit_entity(actor, audit.auditor_id, "audits"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Ви не є аудитором цього аудиту")
     item = db.get(AuditChecklistItem, item_id)
     if item is None or item.audit_id != audit_id:
@@ -188,7 +192,7 @@ def delete_checklist_item(
     audit_id: int,
     item_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_manager),
+    _: User = Depends(require_audit_manager),
 ):
     item = db.get(AuditChecklistItem, item_id)
     if item is None or item.audit_id != audit_id:
@@ -216,7 +220,7 @@ def add_finding(
     audit_id: int,
     body: FindingIn,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_audit_manager),
 ):
     audit = _get_audit(db, audit_id)
     finding = Finding(audit_id=audit.id, code=_next_finding_code(db))
@@ -225,6 +229,13 @@ def add_finding(
     db.flush()
     log_action(db, actor, "create", "finding", finding.id, {"code": finding.code})
     db.commit()
+    if finding.responsible_id and finding.responsible_id != actor.id:
+        notify_user(
+            db.get(User, finding.responsible_id),
+            f"GRC: знахідка {finding.code} (аудит {audit.code})",
+            f"Вас призначено відповідальним за коригувальну дію за знахідкою "
+            f"{finding.code} — {finding.title}.",
+        )
     return db.get(Finding, finding.id)
 
 
@@ -240,7 +251,7 @@ def update_finding(
     if finding is None or finding.audit_id != audit_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Знахідку не знайдено")
     # Виконавець може оновлювати знахідку, якщо відповідає за коригувальну дію
-    if not can_edit_entity(actor, finding.responsible_id):
+    if not can_edit_entity(actor, finding.responsible_id, "audits"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Ви не відповідаєте за цю знахідку")
     _apply_finding(finding, body)
     log_action(db, actor, "update", "finding", finding.id, {"code": finding.code})
@@ -253,7 +264,7 @@ def delete_finding(
     audit_id: int,
     finding_id: int,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_audit_manager),
 ):
     finding = db.get(Finding, finding_id)
     if finding is None or finding.audit_id != audit_id:
@@ -268,7 +279,7 @@ def create_risk_from_finding(
     audit_id: int,
     finding_id: int,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_manager),
+    actor: User = Depends(require_audit_manager),
 ):
     finding = db.get(Finding, finding_id)
     if finding is None or finding.audit_id != audit_id:

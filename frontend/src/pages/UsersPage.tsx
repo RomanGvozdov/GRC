@@ -1,0 +1,173 @@
+import {
+  Alert,
+  Badge,
+  Button,
+  Group,
+  Loader,
+  Modal,
+  PasswordInput,
+  Select,
+  Stack,
+  Switch,
+  Table,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import { useState } from "react";
+import { api, errorText, type User } from "../api";
+import { useFetch } from "../components/shared";
+import { formatDate, ROLE_LABELS, toOptions } from "../labels";
+
+export default function UsersPage() {
+  const { data: users, reload } = useFetch<User[]>("/users");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<string | null>("reader");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function createUser() {
+    setError("");
+    setBusy(true);
+    try {
+      await api.post("/users", { email, full_name: fullName, password, role });
+      setCreateOpen(false);
+      setEmail("");
+      setFullName("");
+      setPassword("");
+      reload();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function patch(userId: number, body: Record<string, unknown>) {
+    setError("");
+    try {
+      await api.patch(`/users/${userId}`, body);
+      reload();
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
+  return (
+    <>
+      <Group justify="space-between" mb="md">
+        <Title order={2}>Користувачі</Title>
+        <Button onClick={() => setCreateOpen(true)}>Новий користувач</Button>
+      </Group>
+      {error && (
+        <Alert color="red" mb="md" onClose={() => setError("")} withCloseButton>
+          {error}
+        </Alert>
+      )}
+
+      {!users ? (
+        <Loader />
+      ) : (
+        <Table striped>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Ім'я</Table.Th>
+              <Table.Th>Email</Table.Th>
+              <Table.Th>Роль</Table.Th>
+              <Table.Th>2FA</Table.Th>
+              <Table.Th>Активний</Table.Th>
+              <Table.Th>Створений</Table.Th>
+              <Table.Th></Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {users.map((row) => (
+              <Table.Tr key={row.id}>
+                <Table.Td>{row.full_name}</Table.Td>
+                <Table.Td>{row.email}</Table.Td>
+                <Table.Td>
+                  <Select
+                    size="xs"
+                    data={toOptions(ROLE_LABELS)}
+                    value={row.role}
+                    onChange={(value) => value && void patch(row.id, { role: value })}
+                    w={150}
+                  />
+                </Table.Td>
+                <Table.Td>
+                  {row.totp_enabled ? (
+                    <Badge color="green" variant="light">
+                      Увімкнено
+                    </Badge>
+                  ) : (
+                    <Badge color="gray" variant="light">
+                      Не налаштовано
+                    </Badge>
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  <Switch
+                    checked={row.is_active}
+                    onChange={(e) =>
+                      void patch(row.id, { is_active: e.currentTarget.checked })
+                    }
+                  />
+                </Table.Td>
+                <Table.Td>{formatDate(row.created_at)}</Table.Td>
+                <Table.Td>
+                  {row.totp_enabled && (
+                    <Button
+                      size="compact-xs"
+                      variant="subtle"
+                      onClick={() => {
+                        if (window.confirm(`Скинути 2FA для ${row.email}?`))
+                          void patch(row.id, { reset_totp: true });
+                      }}
+                    >
+                      Скинути 2FA
+                    </Button>
+                  )}
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+
+      <Modal opened={createOpen} onClose={() => setCreateOpen(false)} title="Новий користувач">
+        <Stack>
+          <TextInput
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.currentTarget.value)}
+            required
+          />
+          <TextInput
+            label="Повне ім'я"
+            value={fullName}
+            onChange={(e) => setFullName(e.currentTarget.value)}
+            required
+          />
+          <PasswordInput
+            label="Тимчасовий пароль"
+            description="Мінімум 12 символів. Користувач налаштує 2FA при першому вході"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            required
+          />
+          <Select label="Роль" data={toOptions(ROLE_LABELS)} value={role} onChange={setRole} />
+          <Button
+            onClick={() => void createUser()}
+            loading={busy}
+            disabled={!email || !fullName || password.length < 12}
+          >
+            Створити
+          </Button>
+        </Stack>
+      </Modal>
+    </>
+  );
+}

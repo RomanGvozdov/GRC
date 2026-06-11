@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.core.passwords import validate_password
 from app.core.deps import get_current_user, get_totp_setup_user
 from app.core.security import (
     create_access_token,
@@ -180,6 +181,8 @@ def change_password(
 ):
     if not verify_password(body.current_password, user.hashed_password):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Невірний поточний пароль")
+    if (problem := validate_password(body.new_password)) is not None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, problem)
     user.hashed_password = hash_password(body.new_password)
     user.token_version += 1
     log_action(db, user, "password_changed", "user", user.id)

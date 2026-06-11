@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Звіт про стан відповідності (gap-аналіз){% endblock %}
+{% block meta %}
+{{ framework.name }}{% if framework.version %} ({{ framework.version }}){% endif %} · Сформовано: {{ today }}
+{% endblock %}
+{% block content %}
+<div class="summary">
+  <strong>Відповідність: {{ percent }}%</strong>
+  <span>Покрито: {{ counts.covered }}</span>
+  <span>Частково: {{ counts.partial }}</span>
+  <span>Не покрито: {{ counts.not_covered }}</span>
+  <span>Не застосовно: {{ counts.not_applicable }}</span>
+  <span>Усього вимог: {{ total }}</span>
+</div>
+<table>
+  <thead><tr><th>Код</th><th>Вимога</th><th>Покриття</th><th>Контролі</th></tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.code }}</td><td>{{ row.title }}</td>
+      <td><span class="badge {{ row.coverage_key }}">{{ row.coverage }}</span></td>
+      <td>{{ row.controls }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

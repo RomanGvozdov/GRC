@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_admin
+from app.core.passwords import validate_password
 from app.core.security import hash_password
 from app.database import get_db
 from app.models import RecoveryCode, User
@@ -21,6 +22,8 @@ def list_users(db: Session = Depends(get_db), _: User = Depends(get_current_user
 def create_user(
     body: UserCreate, db: Session = Depends(get_db), actor: User = Depends(require_admin)
 ):
+    if (problem := validate_password(body.password)) is not None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, problem)
     email = body.email.lower()
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Користувач з таким email вже існує")
@@ -63,6 +66,8 @@ def update_user(
         if not body.is_active:
             user.token_version += 1
     if body.password is not None:
+        if (problem := validate_password(body.password)) is not None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, problem)
         user.hashed_password = hash_password(body.password)
         user.token_version += 1
         changes["password"] = "reset"

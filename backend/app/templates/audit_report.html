@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Звіт за результатами аудиту {{ audit.code }}{% endblock %}
+{% block meta %}
+{{ audit.title }} · {{ audit_type }} · Статус: {{ audit_status }} · Період: {{ period }} · Аудитор: {{ auditor }} · Сформовано: {{ today }}
+{% endblock %}
+{% block content %}
+{% if audit.scope %}<p><strong>Область аудиту:</strong> {{ audit.scope }}</p>{% endif %}
+
+<h2>Підсумок за чек-листом</h2>
+<div class="summary">
+  {% for label, count in result_counts.items() %}<span>{{ label }}: {{ count }}</span>{% endfor %}
+  <span>Усього пунктів: {{ checklist | length }}</span>
+</div>
+<table>
+  <thead><tr><th>Пункт</th><th>Результат</th><th>Коментар</th></tr></thead>
+  <tbody>
+    {% for item in checklist %}
+    <tr>
+      <td>{{ item.text }}</td>
+      <td><span class="badge {{ item.result_key }}">{{ item.result }}</span></td>
+      <td>{{ item.comment }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Знахідки та коригувальні дії</h2>
+<table>
+  <thead>
+    <tr><th>Код</th><th>Знахідка</th><th>Критичність</th><th>Коригувальна дія</th>
+    <th>Відповідальний</th><th>Дедлайн</th><th>Статус</th></tr>
+  </thead>
+  <tbody>
+    {% for f in findings %}
+    <tr>
+      <td>{{ f.code }}</td>
+      <td>{{ f.title }}{% if f.description %}<br><small>{{ f.description }}</small>{% endif %}
+          {% if f.risk_code %}<br><small>Ризик: {{ f.risk_code }}</small>{% endif %}</td>
+      <td><span class="badge {{ f.severity_key }}">{{ f.severity }}</span></td>
+      <td>{{ f.action }}</td><td>{{ f.responsible }}</td><td>{{ f.deadline }}</td>
+      <td>{{ f.action_status }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7">Знахідок немає</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

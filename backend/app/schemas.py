@@ -350,4 +350,5 @@ class DashboardOut(BaseModel):
     overdue_risk_reviews: int
     overdue_control_reviews: int
     overdue_actions: int
+    overdue_policy_reviews: int
     frameworks: list[FrameworkCoverage]

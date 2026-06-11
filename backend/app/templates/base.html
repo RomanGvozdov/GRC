@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<style>
+  @page {
+    size: A4 {% block orientation %}{% endblock %};
+    margin: 18mm 14mm;
+    @bottom-right { content: "Стор. " counter(page) " з " counter(pages); font-size: 8pt; color: #888; }
+    @bottom-left { content: "GRC · Конфіденційно"; font-size: 8pt; color: #888; }
+  }
+  body { font-family: "DejaVu Sans", sans-serif; font-size: 9pt; color: #1a1a1a; }
+  h1 { font-size: 16pt; margin: 0 0 2mm; }
+  h2 { font-size: 12pt; margin: 6mm 0 2mm; }
+  .meta { color: #666; font-size: 9pt; margin-bottom: 6mm; }
+  table { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+  th, td { border: 0.4pt solid #999; padding: 1.6mm 2mm; text-align: left; vertical-align: top; }
+  th { background: #eef1f5; font-size: 8.5pt; }
+  td { font-size: 8.5pt; }
+  .badge { padding: 0.5mm 1.5mm; border-radius: 2mm; font-size: 8pt; white-space: nowrap; }
+  .low, .compliant, .covered, .implemented { background: #d3f9d8; }
+  .medium, .partial { background: #fff3bf; }
+  .high { background: #ffe8cc; }
+  .critical, .non_compliant, .not_covered, .not_implemented { background: #ffe3e3; }
+  .not_applicable, .none { background: #e9ecef; }
+  .summary { margin: 2mm 0 4mm; }
+  .summary span { margin-right: 6mm; }
+</style>
+</head>
+<body>
+  <h1>{% block title %}{% endblock %}</h1>
+  <div class="meta">{% block meta %}Сформовано: {{ today }}{% endblock %}</div>
+  {% block content %}{% endblock %}
+</body>
+</html>

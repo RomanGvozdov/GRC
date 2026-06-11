@@ -4,13 +4,19 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.deps import get_current_user
 from app.database import get_db
-from app.models import Comment, Control, Risk, Role, User
+from app.models import Audit, Comment, Control, Finding, Policy, Risk, Role, User
 from app.schemas import CommentIn, CommentOut
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/comments", tags=["comments"])
 
-_ENTITY_MODELS = {"risk": Risk, "control": Control}
+_ENTITY_MODELS = {
+    "risk": Risk,
+    "control": Control,
+    "audit": Audit,
+    "finding": Finding,
+    "policy": Policy,
+}
 
 
 def _check_entity(db: Session, entity_type: str, entity_id: int) -> None:
@@ -23,7 +29,7 @@ def _check_entity(db: Session, entity_type: str, entity_id: int) -> None:
 
 @router.get("/{entity_type}/{entity_id}", response_model=list[CommentOut])
 def list_comments(
-    entity_type: str = Path(pattern="^(risk|control)$"),
+    entity_type: str = Path(pattern="^(risk|control|audit|finding|policy)$"),
     entity_id: int = Path(),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
@@ -40,7 +46,7 @@ def list_comments(
 @router.post("/{entity_type}/{entity_id}", response_model=CommentOut, status_code=201)
 def add_comment(
     body: CommentIn,
-    entity_type: str = Path(pattern="^(risk|control)$"),
+    entity_type: str = Path(pattern="^(risk|control|audit|finding|policy)$"),
     entity_id: int = Path(),
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),

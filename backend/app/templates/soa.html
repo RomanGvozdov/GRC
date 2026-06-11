@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block orientation %}landscape{% endblock %}
+{% block title %}Положення про застосовність (Statement of Applicability){% endblock %}
+{% block meta %}
+{{ framework.name }}{% if framework.version %} ({{ framework.version }}){% endif %} · Сформовано: {{ today }}
+{% endblock %}
+{% block content %}
+<table>
+  <thead>
+    <tr><th>Вимога</th><th>Назва вимоги</th><th>Контроль</th><th>Тип</th>
+    <th>Статус впровадження</th><th>Відповідальний</th><th>Обґрунтування виключення</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.code }}</td><td>{{ row.title }}</td><td>{{ row.control }}</td><td>{{ row.type }}</td>
+      <td><span class="badge {{ row.status_key }}">{{ row.status }}</span></td>
+      <td>{{ row.owner }}</td><td>{{ row.justification }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

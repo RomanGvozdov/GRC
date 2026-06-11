@@ -2,10 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_admin
 from app.database import get_db
 from app.models import Framework, ImplementationStatus, Requirement, User
 from app.schemas import FrameworkOut, GapRequirement, GapSummary, RequirementOut
+from app.schemas_phase2 import FrameworkImportIn, FrameworkIn, RequirementIn
+from app.services.audit import log_action
 
 router = APIRouter(prefix="/frameworks", tags=["compliance"])
 
@@ -24,6 +26,110 @@ def list_requirements(
     return db.scalars(
         select(Requirement).where(Requirement.framework_id == framework_id).order_by(Requirement.id)
     ).all()
+
+
+@router.post("", response_model=FrameworkOut, status_code=status.HTTP_201_CREATED)
+def create_framework(
+    body: FrameworkIn, db: Session = Depends(get_db), actor: User = Depends(require_admin)
+):
+    """Створення кастомного каталогу (наприклад, для українських вимог)."""
+    if db.scalar(select(Framework).where(Framework.code == body.code)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Фреймворк з таким кодом вже існує")
+    framework = Framework(code=body.code, name=body.name, version=body.version, is_custom=True)
+    db.add(framework)
+    db.flush()
+    log_action(db, actor, "create", "framework", framework.id, {"code": body.code})
+    db.commit()
+    return framework
+
+
+@router.post("/import", response_model=FrameworkOut, status_code=status.HTTP_201_CREATED)
+def import_framework(
+    body: FrameworkImportIn, db: Session = Depends(get_db), actor: User = Depends(require_admin)
+):
+    """Імпорт каталогу разом із вимогами з JSON (повний NIST 800-53, НД ТЗІ тощо)."""
+    if db.scalar(select(Framework).where(Framework.code == body.code)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Фреймворк з таким кодом вже існує")
+    framework = Framework(code=body.code, name=body.name, version=body.version, is_custom=True)
+    db.add(framework)
+    db.flush()
+    for req in body.requirements:
+        db.add(
+            Requirement(
+                framework_id=framework.id,
+                code=req.code,
+                title=req.title,
+                description=req.description,
+            )
+        )
+    log_action(
+        db, actor, "import", "framework", framework.id,
+        {"code": body.code, "requirements": len(body.requirements)},
+    )
+    db.commit()
+    return framework
+
+
+def _custom_framework(db: Session, framework_id: int) -> Framework:
+    framework = db.get(Framework, framework_id)
+    if framework is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Фреймворк не знайдено")
+    if not framework.is_custom:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Вбудовані каталоги не можна редагувати"
+        )
+    return framework
+
+
+@router.post(
+    "/{framework_id}/requirements",
+    response_model=RequirementOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_requirement(
+    framework_id: int,
+    body: RequirementIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+):
+    framework = _custom_framework(db, framework_id)
+    requirement = Requirement(
+        framework_id=framework.id,
+        code=body.code,
+        title=body.title,
+        description=body.description,
+    )
+    db.add(requirement)
+    db.flush()
+    log_action(db, actor, "create", "requirement", requirement.id, {"code": body.code})
+    db.commit()
+    return requirement
+
+
+@router.delete("/{framework_id}/requirements/{requirement_id}", status_code=204)
+def delete_requirement(
+    framework_id: int,
+    requirement_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+):
+    _custom_framework(db, framework_id)
+    requirement = db.get(Requirement, requirement_id)
+    if requirement is None or requirement.framework_id != framework_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Вимогу не знайдено")
+    log_action(db, actor, "delete", "requirement", requirement.id, {"code": requirement.code})
+    db.delete(requirement)
+    db.commit()
+
+
+@router.delete("/{framework_id}", status_code=204)
+def delete_framework(
+    framework_id: int, db: Session = Depends(get_db), actor: User = Depends(require_admin)
+):
+    framework = _custom_framework(db, framework_id)
+    log_action(db, actor, "delete", "framework", framework.id, {"code": framework.code})
+    db.delete(framework)
+    db.commit()
 
 
 def requirement_coverage(requirement: Requirement) -> str:

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
     audit,
+    audits,
     auth,
     categories,
     comments,
@@ -12,6 +13,8 @@ from app.api import (
     dashboard,
     exports,
     frameworks,
+    policies,
+    reports,
     risks,
     users,
 )
@@ -54,6 +57,9 @@ api_routers = [
     risks.router,
     controls.router,
     frameworks.router,
+    audits.router,
+    policies.router,
+    reports.router,
     dashboard.router,
     exports.router,
     audit.router,

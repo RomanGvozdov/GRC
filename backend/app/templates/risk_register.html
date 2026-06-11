@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block orientation %}landscape{% endblock %}
+{% block title %}Реєстр ризиків{% endblock %}
+{% block content %}
+<table>
+  <thead>
+    <tr>
+      <th>Код</th><th>Назва</th><th>Категорія</th><th>Статус</th><th>Відповідальний</th>
+      <th>Притам.</th><th>Залишк.</th><th>Рівень</th><th>Стратегія</th><th>Контролі</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in risks %}
+    <tr>
+      <td>{{ r.code }}</td><td>{{ r.title }}</td><td>{{ r.category }}</td><td>{{ r.status }}</td>
+      <td>{{ r.owner }}</td><td>{{ r.inherent or "—" }}</td><td>{{ r.residual or "—" }}</td>
+      <td><span class="badge {{ r.level_key }}">{{ r.residual_label }}</span></td>
+      <td>{{ r.strategy }}</td><td>{{ r.controls }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

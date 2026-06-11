@@ -1,4 +1,22 @@
+from app.models.audits import (
+    Audit,
+    AuditChecklistItem,
+    AuditStatus,
+    AuditType,
+    ChecklistResult,
+    Finding,
+    FindingSeverity,
+)
 from app.models.common import AuditLogEntry, Comment
+from app.models.policies import (
+    ApprovalDecision,
+    Policy,
+    PolicyAck,
+    PolicyApproval,
+    PolicyStatus,
+    PolicyVersion,
+    policy_controls,
+)
 from app.models.compliance import (
     Control,
     ControlType,
@@ -24,6 +42,20 @@ from app.models.users import RecoveryCode, Role, User
 
 __all__ = [
     "ActionStatus",
+    "ApprovalDecision",
+    "Audit",
+    "AuditChecklistItem",
+    "AuditStatus",
+    "AuditType",
+    "ChecklistResult",
+    "Finding",
+    "FindingSeverity",
+    "Policy",
+    "PolicyAck",
+    "PolicyApproval",
+    "PolicyStatus",
+    "PolicyVersion",
+    "policy_controls",
     "AuditLogEntry",
     "Comment",
     "Control",

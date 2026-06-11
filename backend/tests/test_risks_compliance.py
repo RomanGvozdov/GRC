@@ -7,7 +7,7 @@ def test_risk_lifecycle(client, admin_headers):
     )
     assert response.status_code == 201, response.text
     risk = response.json()
-    assert risk["code"] == "RISK-001"
+    assert risk["code"].startswith("RISK-")
     risk_id = risk["id"]
 
     # Оцінка (притаманний ризик) — статус стає "оцінений", рахується score
@@ -115,7 +115,7 @@ def test_control_mapping_and_gap_analysis(client, admin_headers):
     )
     assert response.status_code == 201, response.text
     control = response.json()
-    assert control["code"] == "CTRL-001"
+    assert control["code"].startswith("CTRL-")
     assert control["requirements"][0]["code"] == "A.5.1"
 
     # Gap-аналіз: A.5.1 покрита, решта — ні

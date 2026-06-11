@@ -9,6 +9,8 @@ from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import (
     ActionStatus,
+    Policy,
+    PolicyStatus,
     Control,
     Framework,
     Requirement,
@@ -60,6 +62,14 @@ def dashboard(db: Session = Depends(get_db), _: User = Depends(get_current_user)
     overdue_control_reviews = len(
         db.scalars(select(Control.id).where(Control.next_review_date < today)).all()
     )
+    overdue_policy_reviews = len(
+        db.scalars(
+            select(Policy.id).where(
+                Policy.next_review_date < today,
+                Policy.status == PolicyStatus.ACTIVE.value,
+            )
+        ).all()
+    )
     overdue_actions = len(
         db.scalars(
             select(TreatmentAction.id).where(
@@ -101,5 +111,6 @@ def dashboard(db: Session = Depends(get_db), _: User = Depends(get_current_user)
         overdue_risk_reviews=overdue_risk_reviews,
         overdue_control_reviews=overdue_control_reviews,
         overdue_actions=overdue_actions,
+        overdue_policy_reviews=overdue_policy_reviews,
         frameworks=frameworks_out,
     )

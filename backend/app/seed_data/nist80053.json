@@ -1,0 +1,691 @@
+{
+  "code": "nist80053",
+  "name": "NIST SP 800-53 (базовий набір)",
+  "version": "Rev. 5",
+  "requirements": [
+    {
+      "code": "AC-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "AC-2",
+      "title": "Account Management"
+    },
+    {
+      "code": "AC-3",
+      "title": "Access Enforcement"
+    },
+    {
+      "code": "AC-4",
+      "title": "Information Flow Enforcement"
+    },
+    {
+      "code": "AC-5",
+      "title": "Separation of Duties"
+    },
+    {
+      "code": "AC-6",
+      "title": "Least Privilege"
+    },
+    {
+      "code": "AC-7",
+      "title": "Unsuccessful Logon Attempts"
+    },
+    {
+      "code": "AC-8",
+      "title": "System Use Notification"
+    },
+    {
+      "code": "AC-11",
+      "title": "Device Lock"
+    },
+    {
+      "code": "AC-12",
+      "title": "Session Termination"
+    },
+    {
+      "code": "AC-14",
+      "title": "Permitted Actions Without Identification or Authentication"
+    },
+    {
+      "code": "AC-17",
+      "title": "Remote Access"
+    },
+    {
+      "code": "AC-18",
+      "title": "Wireless Access"
+    },
+    {
+      "code": "AC-19",
+      "title": "Access Control for Mobile Devices"
+    },
+    {
+      "code": "AC-20",
+      "title": "Use of External Systems"
+    },
+    {
+      "code": "AC-21",
+      "title": "Information Sharing"
+    },
+    {
+      "code": "AC-22",
+      "title": "Publicly Accessible Content"
+    },
+    {
+      "code": "AT-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "AT-2",
+      "title": "Literacy Training and Awareness"
+    },
+    {
+      "code": "AT-3",
+      "title": "Role-based Training"
+    },
+    {
+      "code": "AT-4",
+      "title": "Training Records"
+    },
+    {
+      "code": "AU-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "AU-2",
+      "title": "Event Logging"
+    },
+    {
+      "code": "AU-3",
+      "title": "Content of Audit Records"
+    },
+    {
+      "code": "AU-4",
+      "title": "Audit Log Storage Capacity"
+    },
+    {
+      "code": "AU-5",
+      "title": "Response to Audit Logging Process Failures"
+    },
+    {
+      "code": "AU-6",
+      "title": "Audit Record Review, Analysis, and Reporting"
+    },
+    {
+      "code": "AU-7",
+      "title": "Audit Record Reduction and Report Generation"
+    },
+    {
+      "code": "AU-8",
+      "title": "Time Stamps"
+    },
+    {
+      "code": "AU-9",
+      "title": "Protection of Audit Information"
+    },
+    {
+      "code": "AU-11",
+      "title": "Audit Record Retention"
+    },
+    {
+      "code": "AU-12",
+      "title": "Audit Record Generation"
+    },
+    {
+      "code": "CA-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "CA-2",
+      "title": "Control Assessments"
+    },
+    {
+      "code": "CA-3",
+      "title": "Information Exchange"
+    },
+    {
+      "code": "CA-5",
+      "title": "Plan of Action and Milestones"
+    },
+    {
+      "code": "CA-6",
+      "title": "Authorization"
+    },
+    {
+      "code": "CA-7",
+      "title": "Continuous Monitoring"
+    },
+    {
+      "code": "CA-8",
+      "title": "Penetration Testing"
+    },
+    {
+      "code": "CA-9",
+      "title": "Internal System Connections"
+    },
+    {
+      "code": "CM-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "CM-2",
+      "title": "Baseline Configuration"
+    },
+    {
+      "code": "CM-3",
+      "title": "Configuration Change Control"
+    },
+    {
+      "code": "CM-4",
+      "title": "Impact Analyses"
+    },
+    {
+      "code": "CM-5",
+      "title": "Access Restrictions for Change"
+    },
+    {
+      "code": "CM-6",
+      "title": "Configuration Settings"
+    },
+    {
+      "code": "CM-7",
+      "title": "Least Functionality"
+    },
+    {
+      "code": "CM-8",
+      "title": "System Component Inventory"
+    },
+    {
+      "code": "CM-9",
+      "title": "Configuration Management Plan"
+    },
+    {
+      "code": "CM-10",
+      "title": "Software Usage Restrictions"
+    },
+    {
+      "code": "CM-11",
+      "title": "User-installed Software"
+    },
+    {
+      "code": "CM-12",
+      "title": "Information Location"
+    },
+    {
+      "code": "CP-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "CP-2",
+      "title": "Contingency Plan"
+    },
+    {
+      "code": "CP-3",
+      "title": "Contingency Training"
+    },
+    {
+      "code": "CP-4",
+      "title": "Contingency Plan Testing"
+    },
+    {
+      "code": "CP-6",
+      "title": "Alternate Storage Site"
+    },
+    {
+      "code": "CP-7",
+      "title": "Alternate Processing Site"
+    },
+    {
+      "code": "CP-9",
+      "title": "System Backup"
+    },
+    {
+      "code": "CP-10",
+      "title": "System Recovery and Reconstitution"
+    },
+    {
+      "code": "IA-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "IA-2",
+      "title": "Identification and Authentication (Organizational Users)"
+    },
+    {
+      "code": "IA-3",
+      "title": "Device Identification and Authentication"
+    },
+    {
+      "code": "IA-4",
+      "title": "Identifier Management"
+    },
+    {
+      "code": "IA-5",
+      "title": "Authenticator Management"
+    },
+    {
+      "code": "IA-6",
+      "title": "Authentication Feedback"
+    },
+    {
+      "code": "IA-7",
+      "title": "Cryptographic Module Authentication"
+    },
+    {
+      "code": "IA-8",
+      "title": "Identification and Authentication (Non-organizational Users)"
+    },
+    {
+      "code": "IA-11",
+      "title": "Re-authentication"
+    },
+    {
+      "code": "IA-12",
+      "title": "Identity Proofing"
+    },
+    {
+      "code": "IR-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "IR-2",
+      "title": "Incident Response Training"
+    },
+    {
+      "code": "IR-3",
+      "title": "Incident Response Testing"
+    },
+    {
+      "code": "IR-4",
+      "title": "Incident Handling"
+    },
+    {
+      "code": "IR-5",
+      "title": "Incident Monitoring"
+    },
+    {
+      "code": "IR-6",
+      "title": "Incident Reporting"
+    },
+    {
+      "code": "IR-7",
+      "title": "Incident Response Assistance"
+    },
+    {
+      "code": "IR-8",
+      "title": "Incident Response Plan"
+    },
+    {
+      "code": "MA-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "MA-2",
+      "title": "Controlled Maintenance"
+    },
+    {
+      "code": "MA-3",
+      "title": "Maintenance Tools"
+    },
+    {
+      "code": "MA-4",
+      "title": "Nonlocal Maintenance"
+    },
+    {
+      "code": "MA-5",
+      "title": "Maintenance Personnel"
+    },
+    {
+      "code": "MP-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "MP-2",
+      "title": "Media Access"
+    },
+    {
+      "code": "MP-3",
+      "title": "Media Marking"
+    },
+    {
+      "code": "MP-4",
+      "title": "Media Storage"
+    },
+    {
+      "code": "MP-5",
+      "title": "Media Transport"
+    },
+    {
+      "code": "MP-6",
+      "title": "Media Sanitization"
+    },
+    {
+      "code": "MP-7",
+      "title": "Media Use"
+    },
+    {
+      "code": "PE-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "PE-2",
+      "title": "Physical Access Authorizations"
+    },
+    {
+      "code": "PE-3",
+      "title": "Physical Access Control"
+    },
+    {
+      "code": "PE-6",
+      "title": "Monitoring Physical Access"
+    },
+    {
+      "code": "PE-8",
+      "title": "Visitor Access Records"
+    },
+    {
+      "code": "PE-9",
+      "title": "Power Equipment and Cabling"
+    },
+    {
+      "code": "PE-10",
+      "title": "Emergency Shutoff"
+    },
+    {
+      "code": "PE-11",
+      "title": "Emergency Power"
+    },
+    {
+      "code": "PE-12",
+      "title": "Emergency Lighting"
+    },
+    {
+      "code": "PE-13",
+      "title": "Fire Protection"
+    },
+    {
+      "code": "PE-14",
+      "title": "Environmental Controls"
+    },
+    {
+      "code": "PE-15",
+      "title": "Water Damage Protection"
+    },
+    {
+      "code": "PE-16",
+      "title": "Delivery and Removal"
+    },
+    {
+      "code": "PE-17",
+      "title": "Alternate Work Site"
+    },
+    {
+      "code": "PL-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "PL-2",
+      "title": "System Security and Privacy Plans"
+    },
+    {
+      "code": "PL-4",
+      "title": "Rules of Behavior"
+    },
+    {
+      "code": "PL-8",
+      "title": "Security and Privacy Architectures"
+    },
+    {
+      "code": "PL-10",
+      "title": "Baseline Selection"
+    },
+    {
+      "code": "PL-11",
+      "title": "Baseline Tailoring"
+    },
+    {
+      "code": "PS-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "PS-2",
+      "title": "Position Risk Designation"
+    },
+    {
+      "code": "PS-3",
+      "title": "Personnel Screening"
+    },
+    {
+      "code": "PS-4",
+      "title": "Personnel Termination"
+    },
+    {
+      "code": "PS-5",
+      "title": "Personnel Transfer"
+    },
+    {
+      "code": "PS-6",
+      "title": "Access Agreements"
+    },
+    {
+      "code": "PS-7",
+      "title": "External Personnel Security"
+    },
+    {
+      "code": "PS-8",
+      "title": "Personnel Sanctions"
+    },
+    {
+      "code": "PS-9",
+      "title": "Position Descriptions"
+    },
+    {
+      "code": "RA-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "RA-2",
+      "title": "Security Categorization"
+    },
+    {
+      "code": "RA-3",
+      "title": "Risk Assessment"
+    },
+    {
+      "code": "RA-5",
+      "title": "Vulnerability Monitoring and Scanning"
+    },
+    {
+      "code": "RA-7",
+      "title": "Risk Response"
+    },
+    {
+      "code": "RA-9",
+      "title": "Criticality Analysis"
+    },
+    {
+      "code": "SA-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "SA-2",
+      "title": "Allocation of Resources"
+    },
+    {
+      "code": "SA-3",
+      "title": "System Development Life Cycle"
+    },
+    {
+      "code": "SA-4",
+      "title": "Acquisition Process"
+    },
+    {
+      "code": "SA-5",
+      "title": "System Documentation"
+    },
+    {
+      "code": "SA-8",
+      "title": "Security and Privacy Engineering Principles"
+    },
+    {
+      "code": "SA-9",
+      "title": "External System Services"
+    },
+    {
+      "code": "SA-10",
+      "title": "Developer Configuration Management"
+    },
+    {
+      "code": "SA-11",
+      "title": "Developer Testing and Evaluation"
+    },
+    {
+      "code": "SA-15",
+      "title": "Development Process, Standards, and Tools"
+    },
+    {
+      "code": "SA-22",
+      "title": "Unsupported System Components"
+    },
+    {
+      "code": "SC-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "SC-5",
+      "title": "Denial-of-service Protection"
+    },
+    {
+      "code": "SC-7",
+      "title": "Boundary Protection"
+    },
+    {
+      "code": "SC-8",
+      "title": "Transmission Confidentiality and Integrity"
+    },
+    {
+      "code": "SC-10",
+      "title": "Network Disconnect"
+    },
+    {
+      "code": "SC-12",
+      "title": "Cryptographic Key Establishment and Management"
+    },
+    {
+      "code": "SC-13",
+      "title": "Cryptographic Protection"
+    },
+    {
+      "code": "SC-15",
+      "title": "Collaborative Computing Devices and Applications"
+    },
+    {
+      "code": "SC-17",
+      "title": "Public Key Infrastructure Certificates"
+    },
+    {
+      "code": "SC-18",
+      "title": "Mobile Code"
+    },
+    {
+      "code": "SC-20",
+      "title": "Secure Name/Address Resolution Service (Authoritative Source)"
+    },
+    {
+      "code": "SC-21",
+      "title": "Secure Name/Address Resolution Service (Recursive or Caching Resolver)"
+    },
+    {
+      "code": "SC-23",
+      "title": "Session Authenticity"
+    },
+    {
+      "code": "SC-28",
+      "title": "Protection of Information at Rest"
+    },
+    {
+      "code": "SC-39",
+      "title": "Process Isolation"
+    },
+    {
+      "code": "SI-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "SI-2",
+      "title": "Flaw Remediation"
+    },
+    {
+      "code": "SI-3",
+      "title": "Malicious Code Protection"
+    },
+    {
+      "code": "SI-4",
+      "title": "System Monitoring"
+    },
+    {
+      "code": "SI-5",
+      "title": "Security Alerts, Advisories, and Directives"
+    },
+    {
+      "code": "SI-7",
+      "title": "Software, Firmware, and Information Integrity"
+    },
+    {
+      "code": "SI-8",
+      "title": "Spam Protection"
+    },
+    {
+      "code": "SI-10",
+      "title": "Information Input Validation"
+    },
+    {
+      "code": "SI-11",
+      "title": "Error Handling"
+    },
+    {
+      "code": "SI-12",
+      "title": "Information Management and Retention"
+    },
+    {
+      "code": "SI-16",
+      "title": "Memory Protection"
+    },
+    {
+      "code": "SR-1",
+      "title": "Policy and Procedures"
+    },
+    {
+      "code": "SR-2",
+      "title": "Supply Chain Risk Management Plan"
+    },
+    {
+      "code": "SR-3",
+      "title": "Supply Chain Controls and Processes"
+    },
+    {
+      "code": "SR-5",
+      "title": "Acquisition Strategies, Tools, and Methods"
+    },
+    {
+      "code": "SR-6",
+      "title": "Supplier Assessments and Reviews"
+    },
+    {
+      "code": "SR-8",
+      "title": "Notification Agreements"
+    },
+    {
+      "code": "SR-10",
+      "title": "Inspection of Systems or Components"
+    },
+    {
+      "code": "SR-11",
+      "title": "Component Authenticity"
+    },
+    {
+      "code": "SR-12",
+      "title": "Component Disposal"
+    }
+  ]
+}

@@ -8,6 +8,9 @@ const NAV_ITEMS = [
   { to: "/risks", label: "Ризики" },
   { to: "/controls", label: "Контролі" },
   { to: "/gap-analysis", label: "Gap-аналіз" },
+  { to: "/audits", label: "Аудити" },
+  { to: "/policies", label: "Політики" },
+  { to: "/reports", label: "Звіти" },
   { to: "/audit-log", label: "Журнал дій" },
 ];
 
@@ -16,7 +19,10 @@ export default function Layout() {
   const location = useLocation();
 
   const items = [...NAV_ITEMS];
-  if (user?.role === "admin") items.push({ to: "/users", label: "Користувачі" });
+  if (user?.role === "admin") {
+    items.push({ to: "/frameworks", label: "Каталоги" });
+    items.push({ to: "/users", label: "Користувачі" });
+  }
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 220, breakpoint: "sm" }} padding="md">

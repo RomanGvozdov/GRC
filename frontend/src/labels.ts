@@ -114,3 +114,70 @@ export function formatDateTime(value: string): string {
 export function toOptions(labels: Record<string, string>) {
   return Object.entries(labels).map(([value, label]) => ({ value, label }));
 }
+
+export const AUDIT_STATUS_LABELS: Record<string, string> = {
+  planned: "Запланований",
+  in_progress: "Триває",
+  reporting: "Звіт",
+  closed: "Закритий",
+};
+
+export const AUDIT_TYPE_LABELS: Record<string, string> = {
+  internal: "Внутрішній",
+  external: "Зовнішній",
+};
+
+export const RESULT_LABELS: Record<string, string> = {
+  compliant: "Відповідає",
+  partial: "Частково",
+  non_compliant: "Не відповідає",
+  not_applicable: "Не застосовно",
+};
+
+export const RESULT_COLORS: Record<string, string> = {
+  compliant: "green",
+  partial: "yellow",
+  non_compliant: "red",
+  not_applicable: "gray",
+};
+
+export const SEVERITY_LABELS: Record<string, string> = {
+  low: "Низька",
+  medium: "Середня",
+  high: "Висока",
+  critical: "Критична",
+};
+
+export const SEVERITY_COLORS: Record<string, string> = {
+  low: "green",
+  medium: "yellow",
+  high: "orange",
+  critical: "red",
+};
+
+export const POLICY_STATUS_LABELS: Record<string, string> = {
+  draft: "Чернетка",
+  approval: "На погодженні",
+  approved: "Затверджена",
+  active: "Діюча",
+  review: "Переглядається",
+  archived: "Архівна",
+};
+
+export const POLICY_STATUS_COLORS: Record<string, string> = {
+  draft: "gray",
+  approval: "yellow",
+  approved: "teal",
+  active: "green",
+  review: "orange",
+  archived: "dark",
+};
+
+export function downloadBlob(data: Blob, filename: string) {
+  const url = URL.createObjectURL(data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

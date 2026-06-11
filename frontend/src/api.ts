@@ -221,6 +221,7 @@ export interface Dashboard {
   overdue_risk_reviews: number;
   overdue_control_reviews: number;
   overdue_actions: number;
+  overdue_policy_reviews: number;
   frameworks: { framework: Framework; coverage_percent: number; covered: number; total: number }[];
 }
 
@@ -238,5 +239,120 @@ export interface Comment {
   id: number;
   author: UserBrief | null;
   text: string;
+  created_at: string;
+}
+
+// --- Типи Фази 2 ---
+
+export type AuditStatus = "planned" | "in_progress" | "reporting" | "closed";
+export type AuditType = "internal" | "external";
+export type ChecklistResult = "compliant" | "partial" | "non_compliant" | "not_applicable";
+export type Severity = "low" | "medium" | "high" | "critical";
+export type PolicyStatus = "draft" | "approval" | "approved" | "active" | "review" | "archived";
+export type Decision = "pending" | "approved" | "rejected";
+
+export interface ChecklistItem {
+  id: number;
+  requirement_id: number | null;
+  text: string;
+  result: ChecklistResult | null;
+  comment: string | null;
+}
+
+export interface Finding {
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  severity: Severity;
+  control: ControlBrief | null;
+  requirement_id: number | null;
+  risk: { id: number; code: string; title: string } | null;
+  action_title: string | null;
+  responsible: UserBrief | null;
+  deadline: string | null;
+  action_status: ActionStatus;
+  created_at: string;
+}
+
+export interface AuditBrief {
+  id: number;
+  code: string;
+  title: string;
+  audit_type: AuditType;
+  status: AuditStatus;
+  framework: Framework | null;
+  date_from: string | null;
+  date_to: string | null;
+  auditor: UserBrief | null;
+  auditor_external: string | null;
+}
+
+export interface Audit extends AuditBrief {
+  scope: string | null;
+  checklist: ChecklistItem[];
+  findings: Finding[];
+  created_at: string;
+}
+
+export interface Approval {
+  id: number;
+  approver: UserBrief;
+  decision: Decision;
+  comment: string | null;
+  decided_at: string | null;
+}
+
+export interface Ack {
+  id: number;
+  user: UserBrief;
+  assigned_at: string;
+  acknowledged_at: string | null;
+}
+
+export interface PolicyVersion {
+  id: number;
+  number: number;
+  content_md: string | null;
+  file_name: string | null;
+  created_by: UserBrief | null;
+  created_at: string;
+  approved_at: string | null;
+  activated_at: string | null;
+  approvals: Approval[];
+  acks: Ack[];
+}
+
+export interface PolicyListItem {
+  id: number;
+  code: string;
+  title: string;
+  status: PolicyStatus;
+  owner: UserBrief | null;
+  next_review_date: string | null;
+  version_number: number | null;
+  ack_total: number;
+  ack_done: number;
+  pending_my_approval: boolean;
+  pending_my_ack: boolean;
+}
+
+export interface Policy {
+  id: number;
+  code: string;
+  title: string;
+  status: PolicyStatus;
+  owner: UserBrief | null;
+  next_review_date: string | null;
+  controls: ControlBrief[];
+  versions: {
+    id: number;
+    number: number;
+    file_name: string | null;
+    created_at: string;
+    approved_at: string | null;
+    activated_at: string | null;
+  }[];
+  current_version: PolicyVersion | null;
   created_at: string;
 }

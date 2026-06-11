@@ -2,11 +2,17 @@ import { Center, Loader } from "@mantine/core";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
 import Layout from "./components/Layout";
+import AuditDetailPage from "./pages/AuditDetailPage";
 import AuditLogPage from "./pages/AuditLogPage";
+import AuditsPage from "./pages/AuditsPage";
 import ControlDetailPage from "./pages/ControlDetailPage";
 import ControlsPage from "./pages/ControlsPage";
 import DashboardPage from "./pages/DashboardPage";
+import FrameworksPage from "./pages/FrameworksPage";
 import GapAnalysisPage from "./pages/GapAnalysisPage";
+import PoliciesPage from "./pages/PoliciesPage";
+import PolicyDetailPage from "./pages/PolicyDetailPage";
+import ReportsPage from "./pages/ReportsPage";
 import LoginPage from "./pages/LoginPage";
 import RiskDetailPage from "./pages/RiskDetailPage";
 import RisksPage from "./pages/RisksPage";
@@ -40,7 +46,13 @@ export default function App() {
         <Route path="/controls" element={<ControlsPage />} />
         <Route path="/controls/:id" element={<ControlDetailPage />} />
         <Route path="/gap-analysis" element={<GapAnalysisPage />} />
+        <Route path="/audits" element={<AuditsPage />} />
+        <Route path="/audits/:id" element={<AuditDetailPage />} />
+        <Route path="/policies" element={<PoliciesPage />} />
+        <Route path="/policies/:id" element={<PolicyDetailPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
         <Route path="/audit-log" element={<AuditLogPage />} />
+        {user.role === "admin" && <Route path="/frameworks" element={<FrameworksPage />} />}
         {user.role === "admin" && <Route path="/users" element={<UsersPage />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

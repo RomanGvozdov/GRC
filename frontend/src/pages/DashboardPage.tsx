@@ -91,7 +91,7 @@ export default function DashboardPage() {
       <Title order={2} mb="md">
         Дашборд
       </Title>
-      <SimpleGrid cols={{ base: 2, md: 4 }} mb="md">
+      <SimpleGrid cols={{ base: 2, md: 5 }} mb="md">
         <StatCard label="Усього ризиків" value={data.risks_total} />
         <StatCard label="Прострочені перегляди ризиків" value={data.overdue_risk_reviews} danger />
         <StatCard
@@ -100,6 +100,11 @@ export default function DashboardPage() {
           danger
         />
         <StatCard label="Прострочені дії з обробки" value={data.overdue_actions} danger />
+        <StatCard
+          label="Прострочені перегляди політик"
+          value={data.overdue_policy_reviews}
+          danger
+        />
       </SimpleGrid>
 
       <Grid>

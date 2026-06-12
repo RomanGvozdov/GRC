@@ -14,6 +14,7 @@ require_policy_manager = require_permission("policies", "manage")
 from app.database import get_db
 from app.models import (
     ApprovalDecision,
+    InformationSystem,
     Control,
     Policy,
     PolicyAck,
@@ -68,9 +69,18 @@ def _out(policy: Policy) -> PolicyOut:
 
 
 @router.get("", response_model=list[PolicyListItem])
-def list_policies(db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+def list_policies(
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+    system_id: int | None = None,
+):
+    query = select(Policy)
+    if system_id:
+        query = query.where(
+            Policy.systems.any(InformationSystem.id == system_id) | ~Policy.systems.any()
+        )
     policies = db.scalars(
-        select(Policy).options(
+        query.options(
             selectinload(Policy.versions).selectinload(PolicyVersion.approvals),
             selectinload(Policy.versions).selectinload(PolicyVersion.acks),
         ).order_by(Policy.id)
@@ -107,6 +117,11 @@ def create_policy(
     policy.controls = list(
         db.scalars(select(Control).where(Control.id.in_(body.control_ids))).all()
     )
+    policy.systems = list(
+        db.scalars(
+            select(InformationSystem).where(InformationSystem.id.in_(body.system_ids))
+        ).all()
+    )
     policy.versions.append(PolicyVersion(number=1, created_by_id=actor.id))
     db.add(policy)
     db.flush()
@@ -135,6 +150,11 @@ def update_policy(
     policy.next_review_date = body.next_review_date
     policy.controls = list(
         db.scalars(select(Control).where(Control.id.in_(body.control_ids))).all()
+    )
+    policy.systems = list(
+        db.scalars(
+            select(InformationSystem).where(InformationSystem.id.in_(body.system_ids))
+        ).all()
     )
     log_action(db, actor, "update", "policy", policy.id, {"code": policy.code})
     db.commit()

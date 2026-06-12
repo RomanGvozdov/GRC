@@ -39,6 +39,17 @@ from app.models.risks import (
     risk_level_label,
 )
 from app.models.rbac import APIToken, CustomRole
+from app.models.systems import (
+    ControlImplementation,
+    InformationSystem,
+    SystemCriticality,
+    SystemStatus,
+    aggregate_status,
+    audit_systems,
+    effective_status_for_system,
+    policy_systems,
+    risk_systems,
+)
 from app.models.users import RecoveryCode, Role, User
 
 __all__ = [
@@ -62,6 +73,12 @@ __all__ = [
     "AuditLogEntry",
     "Comment",
     "Control",
+    "ControlImplementation",
+    "InformationSystem",
+    "SystemCriticality",
+    "SystemStatus",
+    "aggregate_status",
+    "effective_status_for_system",
     "ControlType",
     "Evidence",
     "Framework",

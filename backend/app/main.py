@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import (
     audit,
     audits,
+    imports,
+    my_tasks,
+    systems,
     auth,
     categories,
     comments,
@@ -21,6 +24,7 @@ from app.api import (
 )
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine
+from app.migrate_legacy import migrate_legacy_schema
 from app.seed import run_seed
 from app.services.notify import send_daily_digest
 
@@ -28,6 +32,7 @@ from app.services.notify import send_daily_digest
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    migrate_legacy_schema(engine)
     with SessionLocal() as db:
         run_seed(db)
     scheduler = None
@@ -72,8 +77,11 @@ api_routers = [
     risks.router,
     controls.router,
     frameworks.router,
+    systems.router,
     audits.router,
     policies.router,
+    my_tasks.router,
+    imports.router,
     rbac.router,
     reports.router,
     dashboard.router,

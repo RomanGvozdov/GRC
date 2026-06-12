@@ -10,6 +10,7 @@ require_audit_reader = require_permission("audits", "read")
 from app.database import get_db
 from app.models import (
     Audit,
+    InformationSystem,
     AuditChecklistItem,
     Finding,
     Requirement,
@@ -57,7 +58,7 @@ def _get_audit(db: Session, audit_id: int) -> Audit:
     return audit
 
 
-def _apply(audit: Audit, body: AuditIn) -> None:
+def _apply(db: Session, audit: Audit, body: AuditIn) -> None:
     audit.title = body.title
     audit.audit_type = body.audit_type.value
     audit.scope = body.scope
@@ -67,11 +68,25 @@ def _apply(audit: Audit, body: AuditIn) -> None:
     audit.auditor_id = body.auditor_id
     audit.auditor_external = body.auditor_external
     audit.status = body.status.value
+    audit.systems = list(
+        db.scalars(
+            select(InformationSystem).where(InformationSystem.id.in_(body.system_ids))
+        ).all()
+    )
 
 
 @router.get("", response_model=list[AuditBrief])
-def list_audits(db: Session = Depends(get_db), _: User = Depends(require_audit_reader)):
-    return db.scalars(select(Audit).order_by(Audit.id.desc())).all()
+def list_audits(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_audit_reader),
+    system_id: int | None = None,
+):
+    query = select(Audit).options(selectinload(Audit.systems))
+    if system_id:
+        query = query.where(
+            Audit.systems.any(InformationSystem.id == system_id) | ~Audit.systems.any()
+        )
+    return db.scalars(query.order_by(Audit.id.desc())).all()
 
 
 @router.post("", response_model=AuditOut, status_code=status.HTTP_201_CREATED)
@@ -79,7 +94,7 @@ def create_audit(
     body: AuditIn, db: Session = Depends(get_db), actor: User = Depends(require_audit_manager)
 ):
     audit = Audit(code=_next_audit_code(db))
-    _apply(audit, body)
+    _apply(db, audit, body)
     db.add(audit)
     db.flush()
     log_action(db, actor, "create", "audit", audit.id, {"code": audit.code})
@@ -100,7 +115,7 @@ def update_audit(
     actor: User = Depends(require_audit_manager),
 ):
     audit = _get_audit(db, audit_id)
-    _apply(audit, body)
+    _apply(db, audit, body)
     log_action(db, actor, "update", "audit", audit.id, {"code": audit.code})
     db.commit()
     return _get_audit(db, audit_id)

@@ -144,11 +144,23 @@ class AssessmentOut(ORMModel):
     assessed_at: datetime
 
 
+class SystemBrief(ORMModel):
+    id: int
+    code: str
+    name: str
+
+
 class ControlBrief(ORMModel):
     id: int
     code: str
     name: str
-    implementation_status: ImplementationStatus
+
+
+class GapControl(BaseModel):
+    id: int
+    code: str
+    name: str
+    status: str | None  # ефективний статус у контексті обраної системи
 
 
 class RiskIn(BaseModel):
@@ -163,6 +175,7 @@ class RiskIn(BaseModel):
     status: RiskStatus = RiskStatus.DRAFT
     treatment_strategy: TreatmentStrategy | None = None
     acceptance_comment: str | None = None
+    system_ids: list[int] = []
 
 
 class RiskBrief(ORMModel):
@@ -178,6 +191,7 @@ class RiskBrief(ORMModel):
     residual_likelihood: int | None
     residual_impact: int | None
     treatment_strategy: TreatmentStrategy | None
+    systems: list[SystemBrief] = []
 
     @computed_field
     @property
@@ -255,11 +269,17 @@ class ControlIn(BaseModel):
     description: str | None = None
     control_type: ControlType | None = None
     owner_id: int | None = None
-    implementation_status: ImplementationStatus = ImplementationStatus.NOT_IMPLEMENTED
-    na_justification: str | None = None
-    review_period_months: int | None = Field(default=None, ge=1, le=60)
-    next_review_date: date | None = None
     requirement_ids: list[int] = []
+
+
+class ImplementationOut(ORMModel):
+    id: int
+    system: SystemBrief | None
+    implementation_status: ImplementationStatus
+    na_justification: str | None
+    review_period_months: int | None
+    next_review_date: date | None
+    evidence: list[EvidenceOut]
 
 
 class ControlOut(ORMModel):
@@ -269,24 +289,37 @@ class ControlOut(ORMModel):
     description: str | None
     control_type: ControlType | None
     owner: UserBrief | None
-    implementation_status: ImplementationStatus
-    na_justification: str | None
-    review_period_months: int | None
-    next_review_date: date | None
     requirements: list[RequirementBrief]
-    evidence: list[EvidenceOut]
+    implementations: list[ImplementationOut]
     created_at: datetime
     updated_at: datetime
 
+    @computed_field
+    @property
+    def aggregate_status(self) -> str:
+        return _agg_out(self.implementations)
 
-class ControlListItem(ORMModel):
+
+def _agg_out(implementations) -> str:
+    rank = {"not_implemented": 0, "partial": 1, "implemented": 2, "not_applicable": 3}
+    statuses = [i.implementation_status.value for i in implementations]
+    if not statuses:
+        return "not_implemented"
+    real = [s for s in statuses if s != "not_applicable"]
+    if not real:
+        return "not_applicable"
+    return min(real, key=lambda s: rank[s])
+
+
+class ControlListItem(BaseModel):
     id: int
     code: str
     name: str
     control_type: ControlType | None
     owner: UserBrief | None
-    implementation_status: ImplementationStatus
-    next_review_date: date | None
+    aggregate_status: str
+    systems: list[SystemBrief]
+    next_review_date: date | None  # найближча серед впроваджень
     requirements: list[RequirementBrief]
 
 
@@ -294,7 +327,7 @@ class ControlListItem(ORMModel):
 
 class GapRequirement(BaseModel):
     requirement: RequirementOut
-    controls: list[ControlBrief]
+    controls: list[GapControl]
     coverage: str  # covered / partial / not_covered / not_applicable
 
 

@@ -11,7 +11,7 @@ from app.models import (
     FindingSeverity,
     PolicyStatus,
 )
-from app.schemas import ControlBrief, FrameworkOut, ORMModel, UserBrief
+from app.schemas import ControlBrief, FrameworkOut, ORMModel, SystemBrief, UserBrief
 
 
 # --- Audits ---
@@ -26,6 +26,7 @@ class AuditIn(BaseModel):
     auditor_id: int | None = None
     auditor_external: str | None = None
     status: AuditStatus = AuditStatus.PLANNED
+    system_ids: list[int] = []
 
 
 class ChecklistItemIn(BaseModel):
@@ -91,6 +92,7 @@ class AuditBrief(ORMModel):
     date_to: date | None
     auditor: UserBrief | None
     auditor_external: str | None
+    systems: list[SystemBrief] = []
 
 
 class AuditOut(AuditBrief):
@@ -107,6 +109,7 @@ class PolicyIn(BaseModel):
     owner_id: int | None = None
     next_review_date: date | None = None
     control_ids: list[int] = []
+    system_ids: list[int] = []
 
 
 class PolicyContentIn(BaseModel):
@@ -157,6 +160,7 @@ class PolicyBrief(ORMModel):
     status: PolicyStatus
     owner: UserBrief | None
     next_review_date: date | None
+    systems: list[SystemBrief] = []
 
 
 class PolicyListItem(PolicyBrief):

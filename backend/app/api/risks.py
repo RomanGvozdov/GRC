@@ -12,6 +12,7 @@ require_risk_reader = require_permission("risks", "read")
 from app.database import get_db
 from app.models import (
     Control,
+    InformationSystem,
     Risk,
     RiskAssessment,
     RiskStatus,
@@ -89,10 +90,15 @@ def list_risks(
     status_filter: RiskStatus | None = Query(default=None, alias="status"),
     category_id: int | None = None,
     owner_id: int | None = None,
+    system_id: int | None = None,
     level: str | None = Query(default=None, pattern="^(low|medium|high|critical)$"),
     search: str | None = None,
 ):
-    query = select(Risk).options(selectinload(Risk.category), selectinload(Risk.owner))
+    query = select(Risk).options(
+        selectinload(Risk.category), selectinload(Risk.owner), selectinload(Risk.systems)
+    )
+    if system_id:
+        query = query.where(Risk.systems.any(InformationSystem.id == system_id) | ~Risk.systems.any())
     if status_filter:
         query = query.where(Risk.status == status_filter.value)
     if category_id:
@@ -118,7 +124,15 @@ def list_risks(
 def create_risk(
     body: RiskIn, db: Session = Depends(get_db), actor: User = Depends(require_risk_manager)
 ):
-    risk = Risk(code=next_code(db), **body.model_dump(exclude={"treatment_strategy"}))
+    risk = Risk(
+        code=next_code(db),
+        **body.model_dump(exclude={"treatment_strategy", "system_ids"}),
+    )
+    risk.systems = list(
+        db.scalars(
+            select(InformationSystem).where(InformationSystem.id.in_(body.system_ids))
+        ).all()
+    )
     risk.status = body.status.value
     risk.treatment_strategy = (
         body.treatment_strategy.value if body.treatment_strategy else None
@@ -153,8 +167,13 @@ def update_risk(
     _check_acceptance(actor, risk, body)
     previous_owner_id = risk.owner_id
 
-    data = body.model_dump()
+    data = body.model_dump(exclude={"system_ids"})
     data["status"] = body.status.value
+    risk.systems = list(
+        db.scalars(
+            select(InformationSystem).where(InformationSystem.id.in_(body.system_ids))
+        ).all()
+    )
     data["treatment_strategy"] = (
         body.treatment_strategy.value if body.treatment_strategy else None
     )

@@ -42,6 +42,7 @@ class Policy(Base):
 
     owner = relationship("User")
     controls = relationship("Control", secondary=policy_controls)
+    systems = relationship("InformationSystem", secondary="policy_systems")
     versions: Mapped[list["PolicyVersion"]] = relationship(
         back_populates="policy", cascade="all, delete-orphan", order_by="PolicyVersion.number"
     )

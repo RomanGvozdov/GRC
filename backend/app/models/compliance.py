@@ -67,13 +67,6 @@ class Control(Base):
     description: Mapped[str | None] = mapped_column(Text)
     control_type: Mapped[str | None] = mapped_column(String(32))
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
-    implementation_status: Mapped[str] = mapped_column(
-        String(32), default=ImplementationStatus.NOT_IMPLEMENTED.value
-    )
-    # Обґрунтування обов'язкове для статусу "не застосовно" (основа для SoA)
-    na_justification: Mapped[str | None] = mapped_column(Text)
-    review_period_months: Mapped[int | None] = mapped_column(Integer)
-    next_review_date: Mapped[date | None] = mapped_column(Date)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -85,8 +78,9 @@ class Control(Base):
         "Requirement", secondary=control_requirements, back_populates="controls"
     )
     risks = relationship("Risk", secondary="risk_controls", back_populates="controls")
-    evidence: Mapped[list["Evidence"]] = relationship(
-        back_populates="control", cascade="all, delete-orphan", order_by="Evidence.id"
+    implementations = relationship(
+        "ControlImplementation", back_populates="control",
+        cascade="all, delete-orphan", order_by="ControlImplementation.id",
     )
 
 
@@ -94,7 +88,9 @@ class Evidence(Base):
     __tablename__ = "evidence"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    control_id: Mapped[int] = mapped_column(ForeignKey("controls.id", ondelete="CASCADE"), index=True)
+    implementation_id: Mapped[int] = mapped_column(
+        ForeignKey("control_implementations.id", ondelete="CASCADE"), index=True
+    )
     kind: Mapped[str] = mapped_column(String(16))  # file / link
     name: Mapped[str] = mapped_column(String(500))
     url: Mapped[str | None] = mapped_column(Text)  # для kind=link
@@ -103,5 +99,5 @@ class Evidence(Base):
     uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
-    control: Mapped[Control] = relationship(back_populates="evidence")
+    implementation = relationship("ControlImplementation", back_populates="evidence")
     uploaded_by = relationship("User")

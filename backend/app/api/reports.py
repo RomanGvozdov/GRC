@@ -110,20 +110,25 @@ def risk_register(db: Session = Depends(get_db), _: User = Depends(require_repor
 
 @router.get("/gap-analysis/{framework_id}")
 def gap_analysis_report(
-    framework_id: int, db: Session = Depends(get_db), _: User = Depends(require_reports)
+    framework_id: int,
+    system_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_reports),
 ):
     framework = db.get(Framework, framework_id)
     if framework is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Фреймворк не знайдено")
+    from app.models import effective_status_for_system
+
     requirements = db.scalars(
         select(Requirement)
         .where(Requirement.framework_id == framework_id)
-        .options(selectinload(Requirement.controls))
+        .options(selectinload(Requirement.controls).selectinload(Control.implementations))
         .order_by(Requirement.id)
     ).all()
     rows, counts = [], {"covered": 0, "partial": 0, "not_covered": 0, "not_applicable": 0}
     for req in requirements:
-        coverage = requirement_coverage(req)
+        coverage = requirement_coverage(req, system_id)
         counts[coverage] += 1
         rows.append({
             "code": req.code,
@@ -131,7 +136,8 @@ def gap_analysis_report(
             "coverage": COVERAGE_UA[coverage],
             "coverage_key": coverage,
             "controls": ", ".join(
-                f"{c.code} ({IMPL_UA.get(c.implementation_status, '')})" for c in req.controls
+                f"{c.code} ({IMPL_UA.get(effective_status_for_system(c.implementations, system_id) or '', '—')})"
+                for c in req.controls
             ) or "—",
         })
     applicable = len(requirements) - counts["not_applicable"]
@@ -213,6 +219,7 @@ def audit_report(
 @router.get("/soa")
 def statement_of_applicability(
     framework_code: str = "iso27001",
+    system_id: int | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_reports),
 ):
@@ -223,27 +230,37 @@ def statement_of_applicability(
     requirements = db.scalars(
         select(Requirement)
         .where(Requirement.framework_id == framework.id)
-        .options(selectinload(Requirement.controls).selectinload(Control.owner))
+        .options(
+            selectinload(Requirement.controls).selectinload(Control.owner),
+            selectinload(Requirement.controls).selectinload(Control.implementations),
+        )
         .order_by(Requirement.id)
     ).all()
     rows = []
     for req in requirements:
-        if not req.controls:
+        emitted = False
+        for control in req.controls:
+            impls = control.implementations
+            if system_id:
+                impls = [i for i in impls if i.system_id in (system_id, None)]
+            for impl in impls:
+                emitted = True
+                rows.append({
+                    "code": req.code,
+                    "title": req.title,
+                    "control": f"{control.code} {control.name}"
+                    + (f" [{impl.system.name}]" if impl.system else ""),
+                    "status": IMPL_UA.get(impl.implementation_status, ""),
+                    "status_key": impl.implementation_status,
+                    "type": CONTROL_TYPE_UA.get(control.control_type or "", "—"),
+                    "owner": control.owner.full_name if control.owner else "—",
+                    "justification": impl.na_justification or "",
+                })
+        if not emitted:
             rows.append({
                 "code": req.code, "title": req.title, "control": "—",
                 "status": "Не покрито", "status_key": "not_covered",
                 "type": "—", "owner": "—", "justification": "",
-            })
-        for control in req.controls:
-            rows.append({
-                "code": req.code,
-                "title": req.title,
-                "control": f"{control.code} {control.name}",
-                "status": IMPL_UA.get(control.implementation_status, ""),
-                "status_key": control.implementation_status,
-                "type": CONTROL_TYPE_UA.get(control.control_type or "", "—"),
-                "owner": control.owner.full_name if control.owner else "—",
-                "justification": control.na_justification or "",
             })
     return _pdf(
         "soa.html",

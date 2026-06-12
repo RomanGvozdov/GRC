@@ -12,7 +12,7 @@ from app.core.deps import require_permission
 
 require_reports = require_permission("reports", "read")
 from app.database import get_db
-from app.models import Control, Risk, User, risk_level, risk_level_label
+from app.models import Control, Risk, User, aggregate_status, risk_level, risk_level_label
 
 router = APIRouter(prefix="/exports", tags=["exports"])
 
@@ -44,14 +44,14 @@ CONTROL_TYPE_UA = {
 }
 
 RISK_HEADERS = [
-    "Код", "Назва", "Категорія", "Статус", "Відповідальний",
+    "Код", "Назва", "Категорія", "Статус", "Відповідальний", "Системи",
     "Ймовірність (притаманна)", "Вплив (притаманний)", "Рівень (притаманний)",
     "Ймовірність (залишкова)", "Вплив (залишковий)", "Рівень (залишковий)",
     "Стратегія обробки", "Дата наступного перегляду", "Пов'язані контролі",
 ]
 
 CONTROL_HEADERS = [
-    "Код", "Назва", "Тип", "Статус впровадження", "Відповідальний",
+    "Код", "Назва", "Тип", "Система", "Статус впровадження", "Відповідальний",
     "Вимоги (мапінг)", "Дата наступної перевірки", "Обґрунтування (не застосовно)",
 ]
 
@@ -59,7 +59,8 @@ CONTROL_HEADERS = [
 def _risk_rows(db: Session) -> list[list]:
     risks = db.scalars(
         select(Risk).options(
-            selectinload(Risk.category), selectinload(Risk.owner), selectinload(Risk.controls)
+            selectinload(Risk.category), selectinload(Risk.owner),
+            selectinload(Risk.controls), selectinload(Risk.systems),
         ).order_by(Risk.id)
     ).all()
     rows = []
@@ -72,6 +73,7 @@ def _risk_rows(db: Session) -> list[list]:
             r.category.name if r.category else "",
             RISK_STATUS_UA.get(r.status, r.status),
             r.owner.full_name if r.owner else "",
+            ", ".join(s.name for s in r.systems),
             r.inherent_likelihood or "",
             r.inherent_impact or "",
             LEVEL_UA.get(risk_level_label(inherent) or "", ""),
@@ -88,22 +90,32 @@ def _risk_rows(db: Session) -> list[list]:
 def _control_rows(db: Session) -> list[list]:
     controls = db.scalars(
         select(Control).options(
-            selectinload(Control.owner), selectinload(Control.requirements)
+            selectinload(Control.owner),
+            selectinload(Control.requirements),
+            selectinload(Control.implementations),
         ).order_by(Control.id)
     ).all()
-    return [
-        [
-            c.code,
-            c.name,
-            CONTROL_TYPE_UA.get(c.control_type or "", ""),
-            IMPL_UA.get(c.implementation_status, c.implementation_status),
-            c.owner.full_name if c.owner else "",
-            ", ".join(req.code for req in c.requirements),
-            c.next_review_date.isoformat() if c.next_review_date else "",
-            c.na_justification or "",
-        ]
-        for c in controls
-    ]
+    rows = []
+    for c in controls:
+        for impl in c.implementations or []:
+            rows.append([
+                c.code,
+                c.name,
+                CONTROL_TYPE_UA.get(c.control_type or "", ""),
+                impl.system.name if impl.system else "Вся організація",
+                IMPL_UA.get(impl.implementation_status, impl.implementation_status),
+                c.owner.full_name if c.owner else "",
+                ", ".join(req.code for req in c.requirements),
+                impl.next_review_date.isoformat() if impl.next_review_date else "",
+                impl.na_justification or "",
+            ])
+        if not c.implementations:
+            rows.append([
+                c.code, c.name, CONTROL_TYPE_UA.get(c.control_type or "", ""), "",
+                IMPL_UA["not_implemented"], c.owner.full_name if c.owner else "",
+                ", ".join(req.code for req in c.requirements), "", "",
+            ])
+    return rows
 
 
 def _stream(headers: list[str], rows: list[list], fmt: str, base_name: str) -> StreamingResponse:

@@ -98,6 +98,7 @@ class Risk(Base):
     owner = relationship("User", foreign_keys=[owner_id])
     accepted_by = relationship("User", foreign_keys=[accepted_by_id])
     controls = relationship("Control", secondary=risk_controls, back_populates="risks")
+    systems = relationship("InformationSystem", secondary="risk_systems")
     assessments: Mapped[list["RiskAssessment"]] = relationship(
         back_populates="risk", cascade="all, delete-orphan", order_by="RiskAssessment.assessed_at"
     )

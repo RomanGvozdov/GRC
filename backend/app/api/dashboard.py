@@ -9,6 +9,8 @@ from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import (
     ActionStatus,
+    ControlImplementation,
+    InformationSystem,
     Policy,
     PolicyStatus,
     Control,
@@ -29,11 +31,18 @@ _OPEN_STATUSES = [s.value for s in RiskStatus if s != RiskStatus.CLOSED]
 
 
 @router.get("", response_model=DashboardOut)
-def dashboard(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def dashboard(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+    system_id: int | None = None,
+):
     today = date.today()
-    risks = db.scalars(
-        select(Risk).options(selectinload(Risk.category), selectinload(Risk.owner))
-    ).all()
+    risk_query = select(Risk).options(selectinload(Risk.category), selectinload(Risk.owner))
+    if system_id:
+        risk_query = risk_query.where(
+            Risk.systems.any(InformationSystem.id == system_id) | ~Risk.systems.any()
+        )
+    risks = db.scalars(risk_query).all()
 
     by_status: dict[str, int] = {s.value: 0 for s in RiskStatus}
     by_level: dict[str, int] = {"low": 0, "medium": 0, "high": 0, "critical": 0, "unassessed": 0}
@@ -59,9 +68,15 @@ def dashboard(db: Session = Depends(get_db), _: User = Depends(get_current_user)
     scored.sort(key=lambda pair: pair[0], reverse=True)
     top_risks = [risk for _, risk in scored[:5]]
 
-    overdue_control_reviews = len(
-        db.scalars(select(Control.id).where(Control.next_review_date < today)).all()
+    impl_query = select(ControlImplementation.id).where(
+        ControlImplementation.next_review_date < today
     )
+    if system_id:
+        impl_query = impl_query.where(
+            (ControlImplementation.system_id == system_id)
+            | ControlImplementation.system_id.is_(None)
+        )
+    overdue_control_reviews = len(db.scalars(impl_query).all())
     overdue_policy_reviews = len(
         db.scalars(
             select(Policy.id).where(
@@ -86,10 +101,13 @@ def dashboard(db: Session = Depends(get_db), _: User = Depends(get_current_user)
         requirements = db.scalars(
             select(Requirement)
             .where(Requirement.framework_id == framework.id)
-            .options(selectinload(Requirement.controls))
+            .options(
+                selectinload(Requirement.controls).selectinload(Control.implementations)
+            )
         ).all()
-        covered = sum(1 for r in requirements if requirement_coverage(r) == "covered")
-        na = sum(1 for r in requirements if requirement_coverage(r) == "not_applicable")
+        coverages = [requirement_coverage(r, system_id) for r in requirements]
+        covered = sum(1 for c in coverages if c == "covered")
+        na = sum(1 for c in coverages if c == "not_applicable")
         applicable = len(requirements) - na
         frameworks_out.append(
             FrameworkCoverage(

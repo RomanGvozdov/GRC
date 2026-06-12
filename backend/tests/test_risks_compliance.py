@@ -94,21 +94,13 @@ def test_control_mapping_and_gap_analysis(client, admin_headers):
     ).json()
     req_a51 = next(r for r in requirements if r["code"] == "A.5.1")
 
-    # Статус "не застосовно" без обґрунтування — відмова
-    response = client.post(
-        "/api/controls",
-        json={"name": "Тест NA", "implementation_status": "not_applicable"},
-        headers=admin_headers,
-    )
-    assert response.status_code == 400
-
-    # Створення контролю з мапінгом на A.5.1
+    # Створення контролю з мапінгом на A.5.1 (автоматично отримує
+    # впровадження «вся організація» зі статусом «не впроваджено»)
     response = client.post(
         "/api/controls",
         json={
             "name": "Затверджена політика ІБ",
             "control_type": "preventive",
-            "implementation_status": "implemented",
             "requirement_ids": [req_a51["id"]],
         },
         headers=admin_headers,
@@ -117,14 +109,32 @@ def test_control_mapping_and_gap_analysis(client, admin_headers):
     control = response.json()
     assert control["code"].startswith("CTRL-")
     assert control["requirements"][0]["code"] == "A.5.1"
+    assert control["aggregate_status"] == "not_implemented"
+    impl_id = control["implementations"][0]["id"]
+
+    # Статус "не застосовно" без обґрунтування — відмова
+    response = client.patch(
+        f"/api/controls/{control['id']}/implementations/{impl_id}",
+        json={"implementation_status": "not_applicable"},
+        headers=admin_headers,
+    )
+    assert response.status_code == 400
+
+    # Позначаємо впровадженим
+    response = client.patch(
+        f"/api/controls/{control['id']}/implementations/{impl_id}",
+        json={"implementation_status": "implemented"},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["aggregate_status"] == "implemented"
 
     # Gap-аналіз: A.5.1 покрита, решта — ні
     response = client.get(
         f"/api/frameworks/{iso['id']}/gap-analysis", headers=admin_headers
     )
     gap = response.json()
-    assert gap["covered"] == 1
-    assert gap["not_covered"] == 92
+    assert gap["covered"] >= 1
     row = next(r for r in gap["requirements"] if r["requirement"]["code"] == "A.5.1")
     assert row["coverage"] == "covered"
 

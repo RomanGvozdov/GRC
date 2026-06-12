@@ -53,6 +53,7 @@ class Audit(Base):
 
     framework = relationship("Framework")
     auditor = relationship("User")
+    systems = relationship("InformationSystem", secondary="audit_systems")
     checklist: Mapped[list["AuditChecklistItem"]] = relationship(
         back_populates="audit", cascade="all, delete-orphan", order_by="AuditChecklistItem.id"
     )

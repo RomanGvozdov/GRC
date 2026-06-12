@@ -4,8 +4,15 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.deps import get_current_user, require_admin
 from app.database import get_db
-from app.models import Framework, ImplementationStatus, Requirement, User
-from app.schemas import FrameworkOut, GapRequirement, GapSummary, RequirementOut
+from app.models import (
+    Control,
+    Framework,
+    ImplementationStatus,
+    Requirement,
+    User,
+    effective_status_for_system,
+)
+from app.schemas import FrameworkOut, GapControl, GapRequirement, GapSummary, RequirementOut
 from app.schemas_phase2 import FrameworkImportIn, FrameworkIn, RequirementIn
 from app.services.audit import log_action
 
@@ -132,12 +139,15 @@ def delete_framework(
     db.commit()
 
 
-def requirement_coverage(requirement: Requirement) -> str:
-    """Покриття вимоги контролями: covered / partial / not_covered / not_applicable."""
-    controls = requirement.controls
-    if not controls:
+def requirement_coverage(requirement: Requirement, system_id: int | None = None) -> str:
+    """Покриття вимоги контролями в контексті системи (None = вся організація)."""
+    statuses = set()
+    for control in requirement.controls:
+        effective = effective_status_for_system(control.implementations, system_id)
+        if effective is not None:
+            statuses.add(effective)
+    if not statuses:
         return "not_covered"
-    statuses = {c.implementation_status for c in controls}
     if statuses == {ImplementationStatus.NOT_APPLICABLE.value}:
         return "not_applicable"
     if ImplementationStatus.IMPLEMENTED.value in statuses:
@@ -149,7 +159,10 @@ def requirement_coverage(requirement: Requirement) -> str:
 
 @router.get("/{framework_id}/gap-analysis", response_model=GapSummary)
 def gap_analysis(
-    framework_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    framework_id: int,
+    system_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
 ):
     framework = db.get(Framework, framework_id)
     if framework is None:
@@ -158,19 +171,27 @@ def gap_analysis(
     requirements = db.scalars(
         select(Requirement)
         .where(Requirement.framework_id == framework_id)
-        .options(selectinload(Requirement.controls))
+        .options(
+            selectinload(Requirement.controls).selectinload(Control.implementations)
+        )
         .order_by(Requirement.id)
     ).all()
 
     items: list[GapRequirement] = []
     counts = {"covered": 0, "partial": 0, "not_covered": 0, "not_applicable": 0}
     for requirement in requirements:
-        coverage = requirement_coverage(requirement)
+        coverage = requirement_coverage(requirement, system_id)
         counts[coverage] += 1
         items.append(
             GapRequirement(
                 requirement=RequirementOut.model_validate(requirement),
-                controls=requirement.controls,
+                controls=[
+                    GapControl(
+                        id=c.id, code=c.code, name=c.name,
+                        status=effective_status_for_system(c.implementations, system_id),
+                    )
+                    for c in requirement.controls
+                ],
                 coverage=coverage,
             )
         )

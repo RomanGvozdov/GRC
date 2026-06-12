@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.models import (
     ActionStatus,
     Control,
+    ControlImplementation,
     Finding,
     Policy,
     PolicyStatus,
@@ -116,13 +117,19 @@ def build_digest(db: Session) -> tuple[dict[str, list[str]], list[str]]:
                         f"(до {risk.next_review_date:%d.%m.%Y})")
 
     overdue_controls = db.scalars(
-        select(Control)
-        .where(Control.next_review_date < today)
-        .options(selectinload(Control.owner))
+        select(ControlImplementation)
+        .join(Control)
+        .where(ControlImplementation.next_review_date < today)
+        .options(
+            selectinload(ControlImplementation.control).selectinload(Control.owner),
+            selectinload(ControlImplementation.system),
+        )
     ).all()
-    for control in overdue_controls:
-        add(control.owner, f"Прострочена перевірка контролю {control.code} — {control.name} "
-                           f"(до {control.next_review_date:%d.%m.%Y})")
+    for impl in overdue_controls:
+        suffix = f" [{impl.system.name}]" if impl.system else ""
+        add(impl.control.owner,
+            f"Прострочена перевірка контролю {impl.control.code} — "
+            f"{impl.control.name}{suffix} (до {impl.next_review_date:%d.%m.%Y})")
 
     overdue_actions = db.scalars(
         select(TreatmentAction)

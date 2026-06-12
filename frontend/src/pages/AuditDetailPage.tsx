@@ -69,8 +69,8 @@ export default function AuditDetailPage() {
   const [findingDeadline, setFindingDeadline] = useState("");
 
   if (!audit) return <Loader />;
-  const manager = canManage(user);
-  const editable = canEdit(user);
+  const manager = canManage(user, "audits");
+  const editable = canEdit(user, "audits");
 
   async function call(fn: () => Promise<unknown>) {
     setError("");

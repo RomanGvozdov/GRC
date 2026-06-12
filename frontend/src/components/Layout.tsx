@@ -1,27 +1,31 @@
 import { AppShell, Badge, Button, Group, NavLink, Text, Title } from "@mantine/core";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { useAuth } from "../auth";
+import { hasPermission, useAuth } from "../auth";
 import { ROLE_LABELS } from "../labels";
 
 const NAV_ITEMS = [
-  { to: "/", label: "Дашборд" },
-  { to: "/risks", label: "Ризики" },
-  { to: "/controls", label: "Контролі" },
-  { to: "/gap-analysis", label: "Gap-аналіз" },
-  { to: "/audits", label: "Аудити" },
-  { to: "/policies", label: "Політики" },
-  { to: "/reports", label: "Звіти" },
-  { to: "/audit-log", label: "Журнал дій" },
+  { to: "/", label: "Дашборд", module: null },
+  { to: "/risks", label: "Ризики", module: "risks" },
+  { to: "/controls", label: "Контролі", module: "controls" },
+  { to: "/gap-analysis", label: "Gap-аналіз", module: "frameworks" },
+  { to: "/audits", label: "Аудити", module: "audits" },
+  { to: "/policies", label: "Політики", module: "policies" },
+  { to: "/reports", label: "Звіти", module: "reports" },
+  { to: "/audit-log", label: "Журнал дій", module: "audit_log" },
 ];
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  const items = [...NAV_ITEMS];
-  if (user?.role === "admin") {
+  const items = NAV_ITEMS.filter(
+    (item) => !item.module || hasPermission(user, item.module, "read"),
+  ).map(({ to, label }) => ({ to, label }));
+  if (hasPermission(user, "admin", "manage")) {
     items.push({ to: "/frameworks", label: "Каталоги" });
     items.push({ to: "/users", label: "Користувачі" });
+    items.push({ to: "/roles", label: "Ролі" });
+    items.push({ to: "/api-tokens", label: "API-токени" });
   }
 
   return (

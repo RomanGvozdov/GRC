@@ -62,10 +62,17 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-export function canManage(user: User | null): boolean {
-  return user?.role === "admin" || user?.role === "grc_manager";
+const LEVEL_RANK: Record<string, number> = { none: 0, read: 1, write: 2, manage: 3 };
+
+export function hasPermission(user: User | null, module: string, level: string): boolean {
+  const granted = user?.permissions?.[module] ?? "none";
+  return (LEVEL_RANK[granted] ?? 0) >= (LEVEL_RANK[level] ?? 0);
 }
 
-export function canEdit(user: User | null): boolean {
-  return canManage(user) || user?.role === "executor";
+export function canManage(user: User | null, module: string): boolean {
+  return hasPermission(user, module, "manage");
+}
+
+export function canEdit(user: User | null, module: string): boolean {
+  return hasPermission(user, module, "write");
 }

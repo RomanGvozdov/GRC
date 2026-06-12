@@ -90,7 +90,7 @@ export default function ControlDetailPage() {
   const [linkUrl, setLinkUrl] = useState("");
 
   if (!control) return <Loader />;
-  const editable = canEdit(user);
+  const editable = canEdit(user, "controls");
 
   async function call(fn: () => Promise<unknown>) {
     setError("");
@@ -165,7 +165,7 @@ export default function ControlDetailPage() {
         <Title order={2}>
           {control.code} — {control.name}
         </Title>
-        {canManage(user) && (
+        {canManage(user, "controls") && (
           <Button color="red" variant="outline" onClick={() => void remove()}>
             Видалити
           </Button>

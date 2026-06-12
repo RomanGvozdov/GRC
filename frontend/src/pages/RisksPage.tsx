@@ -94,7 +94,7 @@ export default function RisksPage() {
               <Menu.Item onClick={() => download("csv")}>CSV</Menu.Item>
             </Menu.Dropdown>
           </Menu>
-          {canManage(user) && (
+          {canManage(user, "risks") && (
             <Button onClick={() => setCreateOpen(true)}>Новий ризик</Button>
           )}
         </Group>

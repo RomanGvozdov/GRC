@@ -89,7 +89,7 @@ export default function RiskDetailPage() {
   const [commentText, setCommentText] = useState("");
 
   if (!risk) return <Loader />;
-  const editable = canEdit(user);
+  const editable = canEdit(user, "risks");
 
   async function call(fn: () => Promise<unknown>) {
     setError("");
@@ -180,7 +180,7 @@ export default function RiskDetailPage() {
         <Title order={2}>
           {risk.code} — {risk.title}
         </Title>
-        {canManage(user) && (
+        {canManage(user, "risks") && (
           <Button color="red" variant="outline" onClick={() => void remove()}>
             Видалити
           </Button>
@@ -354,7 +354,7 @@ export default function RiskDetailPage() {
                   <Text size="sm">{comment.text}</Text>
                 </div>
               ))}
-              {user?.role !== "reader" && (
+              {canEdit(user, "risks") && (
                 <Group>
                   <TextInput
                     placeholder="Новий коментар"

@@ -50,7 +50,7 @@ export default function PoliciesPage() {
     <>
       <Group justify="space-between" mb="md">
         <Title order={2}>Політики та документи</Title>
-        {canManage(user) && <Button onClick={() => setCreateOpen(true)}>Нова політика</Button>}
+        {canManage(user, "policies") && <Button onClick={() => setCreateOpen(true)}>Нова політика</Button>}
       </Group>
 
       {myPending.length > 0 && (

@@ -81,7 +81,7 @@ export default function ControlsPage() {
               <Menu.Item onClick={() => download("csv")}>CSV</Menu.Item>
             </Menu.Dropdown>
           </Menu>
-          {canManage(user) && <Button onClick={() => setCreateOpen(true)}>Новий контроль</Button>}
+          {canManage(user, "controls") && <Button onClick={() => setCreateOpen(true)}>Новий контроль</Button>}
         </Group>
       </Group>
 

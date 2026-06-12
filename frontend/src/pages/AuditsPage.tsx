@@ -61,7 +61,7 @@ export default function AuditsPage() {
     <>
       <Group justify="space-between" mb="md">
         <Title order={2}>Аудити</Title>
-        {canManage(user) && <Button onClick={() => setCreateOpen(true)}>Новий аудит</Button>}
+        {canManage(user, "audits") && <Button onClick={() => setCreateOpen(true)}>Новий аудит</Button>}
       </Group>
 
       {!audits ? (

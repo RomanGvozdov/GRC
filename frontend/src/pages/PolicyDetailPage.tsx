@@ -64,7 +64,7 @@ export default function PolicyDetailPage() {
   }, [policy]);
 
   if (!policy) return <Loader />;
-  const manager = canManage(user);
+  const manager = canManage(user, "policies");
   const version = policy.current_version;
   const editableContent =
     manager && (policy.status === "draft" || policy.status === "review");

@@ -65,10 +65,28 @@ export interface UserBrief {
   role: Role;
 }
 
+export interface CustomRole {
+  id: number;
+  name: string;
+  permissions: Record<string, string>;
+}
+
 export interface User extends UserBrief {
   is_active: boolean;
   totp_enabled: boolean;
+  custom_role: { id: number; name: string } | null;
   created_at: string;
+  permissions?: Record<string, string>;
+}
+
+export interface APIToken {
+  id: number;
+  name: string;
+  user: UserBrief;
+  token_prefix: string;
+  created_at: string;
+  expires_at: string | null;
+  last_used_at: string | null;
 }
 
 export interface Category {

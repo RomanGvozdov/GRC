@@ -13,6 +13,8 @@ import GapAnalysisPage from "./pages/GapAnalysisPage";
 import PoliciesPage from "./pages/PoliciesPage";
 import PolicyDetailPage from "./pages/PolicyDetailPage";
 import ReportsPage from "./pages/ReportsPage";
+import RolesPage from "./pages/RolesPage";
+import ApiTokensPage from "./pages/ApiTokensPage";
 import LoginPage from "./pages/LoginPage";
 import RiskDetailPage from "./pages/RiskDetailPage";
 import RisksPage from "./pages/RisksPage";
@@ -54,6 +56,8 @@ export default function App() {
         <Route path="/audit-log" element={<AuditLogPage />} />
         {user.role === "admin" && <Route path="/frameworks" element={<FrameworksPage />} />}
         {user.role === "admin" && <Route path="/users" element={<UsersPage />} />}
+        {user.role === "admin" && <Route path="/roles" element={<RolesPage />} />}
+        {user.role === "admin" && <Route path="/api-tokens" element={<ApiTokensPage />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

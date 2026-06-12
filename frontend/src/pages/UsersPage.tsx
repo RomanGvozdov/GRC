@@ -14,12 +14,31 @@ import {
   Title,
 } from "@mantine/core";
 import { useState } from "react";
-import { api, errorText, type User } from "../api";
+import { api, errorText, type CustomRole, type User } from "../api";
 import { useFetch } from "../components/shared";
 import { formatDate, ROLE_LABELS, toOptions } from "../labels";
 
 export default function UsersPage() {
   const { data: users, reload } = useFetch<User[]>("/users");
+  const { data: customRoles } = useFetch<CustomRole[]>("/roles");
+
+  const roleOptions = [
+    ...Object.entries(ROLE_LABELS).map(([value, label]) => ({
+      value: `builtin:${value}`,
+      label,
+    })),
+    ...(customRoles?.map((r) => ({ value: `custom:${r.id}`, label: `★ ${r.name}` })) ?? []),
+  ];
+
+  function roleValue(row: User): string {
+    return row.custom_role ? `custom:${row.custom_role.id}` : `builtin:${row.role}`;
+  }
+
+  function changeRole(row: User, value: string) {
+    const [kind, id] = value.split(":");
+    if (kind === "custom") void patch(row.id, { custom_role_id: Number(id) });
+    else void patch(row.id, { role: id, clear_custom_role: true });
+  }
   const [createOpen, setCreateOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -90,10 +109,10 @@ export default function UsersPage() {
                 <Table.Td>
                   <Select
                     size="xs"
-                    data={toOptions(ROLE_LABELS)}
-                    value={row.role}
-                    onChange={(value) => value && void patch(row.id, { role: value })}
-                    w={150}
+                    data={roleOptions}
+                    value={roleValue(row)}
+                    onChange={(value) => value && changeRole(row, value)}
+                    w={180}
                   />
                 </Table.Td>
                 <Table.Td>

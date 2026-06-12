@@ -22,7 +22,26 @@ _LEGACY_CONTROL_COLUMNS = [
 ]
 
 
+def _add_missing_columns(engine: Engine) -> None:
+    """create_all не додає колонки в наявні таблиці — додаємо вручну."""
+    inspector = inspect(engine)
+    additions = {
+        "systems": [("profile_type", "VARCHAR(16)")],
+        "requirements": [("profile_types", "VARCHAR(64)")],
+    }
+    with engine.begin() as conn:
+        for table, columns in additions.items():
+            if table not in inspector.get_table_names():
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            for name, ddl_type in columns:
+                if name not in existing:
+                    logger.info("Додаю колонку %s.%s", table, name)
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl_type}"))
+
+
 def migrate_legacy_schema(engine: Engine) -> None:
+    _add_missing_columns(engine)
     inspector = inspect(engine)
     control_cols = {c["name"] for c in inspector.get_columns("controls")}
     evidence_cols = {c["name"] for c in inspector.get_columns("evidence")}

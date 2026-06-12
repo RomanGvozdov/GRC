@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.frameworks import requirement_coverage
+from app.api.frameworks import requirement_applies, requirement_coverage
 from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import (
@@ -43,6 +43,10 @@ def dashboard(
             Risk.systems.any(InformationSystem.id == system_id) | ~Risk.systems.any()
         )
     risks = db.scalars(risk_query).all()
+    profile_type = None
+    if system_id:
+        system = db.get(InformationSystem, system_id)
+        profile_type = system.profile_type if system else None
 
     by_status: dict[str, int] = {s.value: 0 for s in RiskStatus}
     by_level: dict[str, int] = {"low": 0, "medium": 0, "high": 0, "critical": 0, "unassessed": 0}
@@ -105,6 +109,7 @@ def dashboard(
                 selectinload(Requirement.controls).selectinload(Control.implementations)
             )
         ).all()
+        requirements = [r for r in requirements if requirement_applies(r, profile_type)]
         coverages = [requirement_coverage(r, system_id) for r in requirements]
         covered = sum(1 for c in coverages if c == "covered")
         na = sum(1 for c in coverages if c == "not_applicable")

@@ -39,6 +39,7 @@ def create_system(
         description=body.description,
         owner_id=body.owner_id,
         criticality=body.criticality.value if body.criticality else None,
+        profile_type=body.profile_type.value if body.profile_type else None,
         status=body.status.value,
     )
     db.add(system)
@@ -62,6 +63,7 @@ def update_system(
     system.description = body.description
     system.owner_id = body.owner_id
     system.criticality = body.criticality.value if body.criticality else None
+    system.profile_type = body.profile_type.value if body.profile_type else None
     system.status = body.status.value
     log_action(db, actor, "update", "system", system.id, {"code": system.code})
     db.commit()

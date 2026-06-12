@@ -204,3 +204,71 @@ def test_import_template_download(client, admin_headers):
     response = client.get("/api/imports/template/risks", headers=admin_headers)
     assert response.status_code == 200
     assert response.content[:2] == b"PK"  # xlsx = zip
+
+
+def test_base_profiles_nd_tzi(client, admin_headers):
+    # Системи з типами базових профілів
+    response = client.post(
+        "/api/systems",
+        json={"name": "АС конфіденційної інформації", "profile_type": "confidential"},
+        headers=admin_headers,
+    )
+    assert response.status_code == 201, response.text
+    sys_conf = response.json()
+    assert sys_conf["profile_type"] == "confidential"
+
+    response = client.post(
+        "/api/systems",
+        json={"name": "АС службової інформації", "profile_type": "service"},
+        headers=admin_headers,
+    )
+    sys_serv = response.json()
+
+    # Каталог НД ТЗІ з вимогами, розподіленими за профілями
+    response = client.post(
+        "/api/frameworks/import",
+        json={
+            "code": "nd-tzi-3-6-006-24",
+            "name": "НД ТЗІ 3.6-006-24 (тест)",
+            "requirements": [
+                {"code": "Т-1", "title": "Спільна вимога", "profiles": []},
+                {"code": "Т-2", "title": "Лише конфіденційна", "profiles": ["confidential"]},
+                {"code": "Т-3", "title": "Лише службова", "profiles": ["service"]},
+            ],
+        },
+        headers=admin_headers,
+    )
+    assert response.status_code == 201, response.text
+    framework_id = response.json()["id"]
+
+    # Невідомий профіль — відмова
+    response = client.post(
+        f"/api/frameworks/{framework_id}/requirements",
+        json={"code": "Т-X", "title": "Хибна", "profiles": ["secret"]},
+        headers=admin_headers,
+    )
+    assert response.status_code == 400
+
+    # profiles повертаються у вимогах
+    requirements = client.get(
+        f"/api/frameworks/{framework_id}/requirements", headers=admin_headers
+    ).json()
+    t2 = next(r for r in requirements if r["code"] == "Т-2")
+    assert t2["profiles"] == ["confidential"]
+
+    def gap_codes(system_id=None):
+        url = f"/api/frameworks/{framework_id}/gap-analysis"
+        if system_id:
+            url += f"?system_id={system_id}"
+        gap = client.get(url, headers=admin_headers).json()
+        return {r["requirement"]["code"] for r in gap["requirements"]}, gap["total"]
+
+    # Вся організація: всі 3 вимоги
+    codes, total = gap_codes()
+    assert codes == {"Т-1", "Т-2", "Т-3"} and total == 3
+    # Конфіденційна система: спільна + конфіденційна
+    codes, total = gap_codes(sys_conf["id"])
+    assert codes == {"Т-1", "Т-2"} and total == 2
+    # Службова система: спільна + службова
+    codes, total = gap_codes(sys_serv["id"])
+    assert codes == {"Т-1", "Т-3"} and total == 2

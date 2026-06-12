@@ -181,3 +181,13 @@ export function downloadBlob(data: Blob, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export const PROFILE_LABELS: Record<string, string> = {
+  confidential: "Конфіденційна інформація",
+  service: "Службова інформація",
+};
+
+export const PROFILE_SHORT: Record<string, string> = {
+  confidential: "К",
+  service: "С",
+};

@@ -51,6 +51,8 @@ class Requirement(Base):
     code: Mapped[str] = mapped_column(String(64))  # A.5.1, AC-2, ...
     title: Mapped[str] = mapped_column(String(500))
     description: Mapped[str | None] = mapped_column(Text)
+    # Базові профілі, до яких належить вимога: "confidential,service" (порожньо = всі)
+    profile_types: Mapped[str | None] = mapped_column(String(64))
 
     framework: Mapped[Framework] = relationship(back_populates="requirements")
     controls = relationship(

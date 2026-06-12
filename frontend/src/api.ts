@@ -117,6 +117,7 @@ export interface System extends SystemBrief {
   description: string | null;
   owner: UserBrief | null;
   criticality: "low" | "medium" | "high" | "critical" | null;
+  profile_type: "confidential" | "service" | null;
   status: "operational" | "development" | "decommissioned";
   created_at: string;
 }
@@ -197,6 +198,7 @@ export interface Requirement {
   code: string;
   title: string;
   description: string | null;
+  profiles: string[];
 }
 
 export interface RequirementBrief {

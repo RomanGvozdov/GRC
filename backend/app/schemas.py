@@ -239,6 +239,12 @@ class RequirementOut(ORMModel):
     code: str
     title: str
     description: str | None
+    profile_types: str | None = Field(default=None, exclude=True)
+
+    @computed_field
+    @property
+    def profiles(self) -> list[str]:
+        return [p for p in (self.profile_types or "").split(",") if p]
 
 
 class RequirementBrief(ORMModel):

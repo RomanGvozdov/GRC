@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from app.models import ImplementationStatus, SystemCriticality, SystemStatus
+from app.models import ImplementationStatus, ProfileType, SystemCriticality, SystemStatus
 from app.schemas import ORMModel, SystemBrief, UserBrief
 
 
@@ -13,6 +13,7 @@ class SystemIn(BaseModel):
     description: str | None = None
     owner_id: int | None = None
     criticality: SystemCriticality | None = None
+    profile_type: ProfileType | None = None
     status: SystemStatus = SystemStatus.OPERATIONAL
 
 
@@ -20,6 +21,7 @@ class SystemOut(SystemBrief):
     description: str | None
     owner: UserBrief | None
     criticality: SystemCriticality | None
+    profile_type: ProfileType | None
     status: SystemStatus
     created_at: datetime
 

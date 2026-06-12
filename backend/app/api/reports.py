@@ -15,7 +15,7 @@ from app.api.exports import (
     RISK_STATUS_UA,
     STRATEGY_UA,
 )
-from app.api.frameworks import requirement_coverage
+from app.api.frameworks import requirement_applies, requirement_coverage
 from app.core.deps import require_permission
 
 require_reports = require_permission("reports", "read")
@@ -118,7 +118,12 @@ def gap_analysis_report(
     framework = db.get(Framework, framework_id)
     if framework is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Фреймворк не знайдено")
-    from app.models import effective_status_for_system
+    from app.models import InformationSystem, effective_status_for_system
+
+    profile_type = None
+    if system_id:
+        system = db.get(InformationSystem, system_id)
+        profile_type = system.profile_type if system else None
 
     requirements = db.scalars(
         select(Requirement)
@@ -126,6 +131,7 @@ def gap_analysis_report(
         .options(selectinload(Requirement.controls).selectinload(Control.implementations))
         .order_by(Requirement.id)
     ).all()
+    requirements = [r for r in requirements if requirement_applies(r, profile_type)]
     rows, counts = [], {"covered": 0, "partial": 0, "not_covered": 0, "not_applicable": 0}
     for req in requirements:
         coverage = requirement_coverage(req, system_id)
@@ -227,6 +233,13 @@ def statement_of_applicability(
     framework = db.scalar(select(Framework).where(Framework.code == framework_code))
     if framework is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Фреймворк не знайдено")
+    profile_type = None
+    if system_id:
+        from app.models import InformationSystem
+
+        system = db.get(InformationSystem, system_id)
+        profile_type = system.profile_type if system else None
+
     requirements = db.scalars(
         select(Requirement)
         .where(Requirement.framework_id == framework.id)
@@ -236,6 +249,7 @@ def statement_of_applicability(
         )
         .order_by(Requirement.id)
     ).all()
+    requirements = [r for r in requirements if requirement_applies(r, profile_type)]
     rows = []
     for req in requirements:
         emitted = False

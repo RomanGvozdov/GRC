@@ -23,6 +23,13 @@ class SystemStatus(str, enum.Enum):
     DECOMMISSIONED = "decommissioned"
 
 
+class ProfileType(str, enum.Enum):
+    """Тип базового профілю захищеності за НД ТЗІ 3.6-006-24."""
+
+    CONFIDENTIAL = "confidential"  # конфіденційна інформація
+    SERVICE = "service"  # службова інформація
+
+
 class SystemCriticality(str, enum.Enum):
     LOW = "low"
     MEDIUM = "medium"
@@ -63,6 +70,7 @@ class InformationSystem(Base):
     description: Mapped[str | None] = mapped_column(Text)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     criticality: Mapped[str | None] = mapped_column(String(16))
+    profile_type: Mapped[str | None] = mapped_column(String(16))  # ProfileType
     status: Mapped[str] = mapped_column(String(32), default=SystemStatus.OPERATIONAL.value)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 

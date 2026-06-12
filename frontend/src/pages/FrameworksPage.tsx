@@ -7,6 +7,7 @@ import {
   Group,
   Loader,
   Modal,
+  MultiSelect,
   Stack,
   Table,
   Text,
@@ -16,6 +17,7 @@ import {
 import { useState } from "react";
 import { api, errorText, type Framework, type Requirement } from "../api";
 import { useFetch } from "../components/shared";
+import { PROFILE_LABELS, PROFILE_SHORT } from "../labels";
 
 export default function FrameworksPage() {
   const { data: frameworks, reload } = useFetch<Framework[]>("/frameworks");
@@ -33,6 +35,7 @@ export default function FrameworksPage() {
 
   const [reqCode, setReqCode] = useState("");
   const [reqTitle, setReqTitle] = useState("");
+  const [reqProfiles, setReqProfiles] = useState<string[]>([]);
 
   async function call(fn: () => Promise<unknown>, after?: () => void) {
     setError("");
@@ -74,10 +77,12 @@ export default function FrameworksPage() {
         api.post(`/frameworks/${selected!.id}/requirements`, {
           code: reqCode,
           title: reqTitle,
+          profiles: reqProfiles,
         }),
       () => {
         setReqCode("");
         setReqTitle("");
+        setReqProfiles([]);
         reloadReqs();
       },
     );
@@ -123,7 +128,8 @@ export default function FrameworksPage() {
       )}
       <Text size="sm" c="dimmed" mb="md">
         Формат JSON для імпорту: {"{"}"code", "name", "version", "requirements": [{"{"}"code",
-        "title", "description"{"}"}]{"}"} — наприклад, повний NIST 800-53 або каталог НД ТЗІ.
+        "title", "description", "profiles": ["confidential" | "service"]{"}"}]{"}"} — наприклад,
+        повний NIST 800-53 або НД ТЗІ 3.6-006-24 з розподілом за базовими профілями.
       </Text>
 
       {!frameworks ? (
@@ -195,6 +201,14 @@ export default function FrameworksPage() {
                   onChange={(e) => setReqTitle(e.currentTarget.value)}
                   style={{ flex: 1 }}
                 />
+                <MultiSelect
+                  label="Профілі"
+                  data={Object.entries(PROFILE_LABELS).map(([value, label]) => ({ value, label }))}
+                  value={reqProfiles}
+                  onChange={setReqProfiles}
+                  w={200}
+                  clearable
+                />
                 <Button
                   onClick={() => void addRequirement()}
                   disabled={!reqCode || !reqTitle}
@@ -210,7 +224,14 @@ export default function FrameworksPage() {
                   {list?.map((req) => (
                     <Table.Tr key={req.id}>
                       <Table.Td w={100}>{req.code}</Table.Td>
-                      <Table.Td>{req.title}</Table.Td>
+                      <Table.Td>
+                        {req.title}
+                        {req.profiles.map((p) => (
+                          <Badge key={p} size="xs" ml={6} variant="outline" color="violet">
+                            {PROFILE_SHORT[p] ?? p}
+                          </Badge>
+                        ))}
+                      </Table.Td>
                       {selected.is_custom && (
                         <Table.Td w={50}>
                           <Button

@@ -7,6 +7,8 @@ from app.database import get_db
 from app.models import (
     Control,
     Framework,
+    InformationSystem,
+    ProfileType,
     ImplementationStatus,
     Requirement,
     User,
@@ -67,6 +69,7 @@ def import_framework(
                 code=req.code,
                 title=req.title,
                 description=req.description,
+                profile_types=_profiles_to_str(req.profiles),
             )
         )
     log_action(
@@ -75,6 +78,29 @@ def import_framework(
     )
     db.commit()
     return framework
+
+
+_VALID_PROFILES = {p.value for p in ProfileType}
+
+
+def _profiles_to_str(profiles: list[str]) -> str | None:
+    for profile in profiles:
+        if profile not in _VALID_PROFILES:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Невідомий профіль «{profile}» (допустимі: confidential, service)",
+            )
+    return ",".join(profiles) or None
+
+
+def requirement_applies(requirement: Requirement, profile_type: str | None) -> bool:
+    """Вимога застосовна до системи: без профілів — завжди; з профілями —
+    лише якщо тип профілю системи входить у перелік."""
+    if not requirement.profile_types:
+        return True
+    if not profile_type:
+        return True  # система без типу профілю — показуємо все
+    return profile_type in requirement.profile_types.split(",")
 
 
 def _custom_framework(db: Session, framework_id: int) -> Framework:
@@ -105,6 +131,7 @@ def add_requirement(
         code=body.code,
         title=body.title,
         description=body.description,
+        profile_types=_profiles_to_str(body.profiles),
     )
     db.add(requirement)
     db.flush()
@@ -168,6 +195,11 @@ def gap_analysis(
     if framework is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Фреймворк не знайдено")
 
+    profile_type = None
+    if system_id:
+        system = db.get(InformationSystem, system_id)
+        profile_type = system.profile_type if system else None
+
     requirements = db.scalars(
         select(Requirement)
         .where(Requirement.framework_id == framework_id)
@@ -176,6 +208,7 @@ def gap_analysis(
         )
         .order_by(Requirement.id)
     ).all()
+    requirements = [r for r in requirements if requirement_applies(r, profile_type)]
 
     items: list[GapRequirement] = []
     counts = {"covered": 0, "partial": 0, "not_covered": 0, "not_applicable": 0}

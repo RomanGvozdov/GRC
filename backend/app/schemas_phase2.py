@@ -198,6 +198,8 @@ class RequirementIn(BaseModel):
     code: str = Field(min_length=1, max_length=64)
     title: str = Field(min_length=1, max_length=500)
     description: str | None = None
+    # Базові профілі (НД ТЗІ 3.6-006-24): confidential / service; порожньо = всі
+    profiles: list[str] = []
 
 
 class FrameworkIn(BaseModel):

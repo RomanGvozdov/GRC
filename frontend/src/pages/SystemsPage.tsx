@@ -15,7 +15,7 @@ import {
 import { useState } from "react";
 import { api, errorText, type System, type User } from "../api";
 import { EmptyRow, useFetch } from "../components/shared";
-import { LEVEL_COLORS, LEVEL_LABELS } from "../labels";
+import { LEVEL_COLORS, LEVEL_LABELS, PROFILE_LABELS } from "../labels";
 
 const STATUS_LABELS: Record<string, string> = {
   operational: "Експлуатується",
@@ -33,6 +33,7 @@ export default function SystemsPage() {
   const [description, setDescription] = useState("");
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [criticality, setCriticality] = useState<string | null>(null);
+  const [profileType, setProfileType] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>("operational");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,6 +44,7 @@ export default function SystemsPage() {
     setDescription("");
     setOwnerId(null);
     setCriticality(null);
+    setProfileType(null);
     setStatus("operational");
     setModalOpen(true);
   }
@@ -53,6 +55,7 @@ export default function SystemsPage() {
     setDescription(system.description ?? "");
     setOwnerId(system.owner ? String(system.owner.id) : null);
     setCriticality(system.criticality);
+    setProfileType(system.profile_type);
     setStatus(system.status);
     setModalOpen(true);
   }
@@ -65,6 +68,7 @@ export default function SystemsPage() {
       description: description || null,
       owner_id: ownerId ? Number(ownerId) : null,
       criticality,
+      profile_type: profileType,
       status,
     };
     try {
@@ -111,13 +115,14 @@ export default function SystemsPage() {
               <Table.Th>Код</Table.Th>
               <Table.Th>Назва</Table.Th>
               <Table.Th>Критичність</Table.Th>
+              <Table.Th>Базовий профіль</Table.Th>
               <Table.Th>Статус</Table.Th>
               <Table.Th>Відповідальний</Table.Th>
               <Table.Th></Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {systems.length === 0 && <EmptyRow colSpan={6} />}
+            {systems.length === 0 && <EmptyRow colSpan={7} />}
             {systems.map((system) => (
               <Table.Tr key={system.id}>
                 <Table.Td>{system.code}</Table.Td>
@@ -126,6 +131,15 @@ export default function SystemsPage() {
                   {system.criticality ? (
                     <Badge color={LEVEL_COLORS[system.criticality]} variant="light">
                       {LEVEL_LABELS[system.criticality]}
+                    </Badge>
+                  ) : (
+                    "—"
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  {system.profile_type ? (
+                    <Badge variant="light" color="violet">
+                      {PROFILE_LABELS[system.profile_type]}
                     </Badge>
                   ) : (
                     "—"
@@ -178,6 +192,14 @@ export default function SystemsPage() {
             onChange={setOwnerId}
             clearable
             searchable
+          />
+          <Select
+            label="Тип базового профілю (НД ТЗІ 3.6-006-24)"
+            description="Визначає, які вимоги профільних каталогів застосовні до системи"
+            data={Object.entries(PROFILE_LABELS).map(([value, label]) => ({ value, label }))}
+            value={profileType}
+            onChange={setProfileType}
+            clearable
           />
           <Group grow>
             <Select

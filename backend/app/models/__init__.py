@@ -41,6 +41,7 @@ from app.models.risks import (
 from app.models.rbac import APIToken, CustomRole
 from app.models.systems import (
     ControlImplementation,
+    ProfileType,
     InformationSystem,
     SystemCriticality,
     SystemStatus,
@@ -75,6 +76,7 @@ __all__ = [
     "Control",
     "ControlImplementation",
     "InformationSystem",
+    "ProfileType",
     "SystemCriticality",
     "SystemStatus",
     "aggregate_status",

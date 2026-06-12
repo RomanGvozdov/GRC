@@ -25,10 +25,11 @@ import {
   type Comment,
   type ControlListItem,
   type Risk,
+  type SystemBrief,
   type User,
 } from "../api";
 import { canEdit, canManage, useAuth } from "../auth";
-import { ImplBadge, LevelBadge, useFetch } from "../components/shared";
+import { LevelBadge, useFetch } from "../components/shared";
 import {
   ACTION_STATUS_LABELS,
   formatDate,
@@ -49,6 +50,8 @@ export default function RiskDetailPage() {
   const { data: users } = useFetch<User[]>("/users");
   const { data: allControls } = useFetch<ControlListItem[]>("/controls");
   const { data: comments, reload: reloadComments } = useFetch<Comment[]>(`/comments/risk/${id}`);
+  const { data: allSystems } = useFetch<SystemBrief[]>("/systems");
+  const [systemIds, setSystemIds] = useState<string[]>([]);
 
   const [form, setForm] = useState<Record<string, string | null>>({});
   const [error, setError] = useState("");
@@ -83,7 +86,10 @@ export default function RiskDetailPage() {
 
   const [controlIds, setControlIds] = useState<string[]>([]);
   useEffect(() => {
-    if (risk) setControlIds(risk.controls.map((c) => String(c.id)));
+    if (risk) {
+      setControlIds(risk.controls.map((c) => String(c.id)));
+      setSystemIds(risk.systems.map((s) => String(s.id)));
+    }
   }, [risk]);
 
   const [commentText, setCommentText] = useState("");
@@ -118,6 +124,7 @@ export default function RiskDetailPage() {
         status: form.status,
         treatment_strategy: form.treatment_strategy || null,
         acceptance_comment: form.acceptance_comment || null,
+        system_ids: systemIds.map(Number),
       }),
     );
 
@@ -246,6 +253,15 @@ export default function RiskDetailPage() {
                   disabled={!editable}
                 />
               </Group>
+              <MultiSelect
+                label="Системи (ІКС)"
+                description="Порожньо = загальноорганізаційний ризик"
+                data={allSystems?.map((s) => ({ value: String(s.id), label: s.name })) ?? []}
+                value={systemIds}
+                onChange={setSystemIds}
+                searchable
+                disabled={!editable}
+              />
               <Textarea
                 label="Активи / процеси"
                 value={form.assets ?? ""}
@@ -464,7 +480,6 @@ export default function RiskDetailPage() {
                   <Anchor component={Link} to={`/controls/${control.id}`} size="sm">
                     {control.code} — {control.name}
                   </Anchor>
-                  <ImplBadge status={control.implementation_status} />
                 </Group>
               ))}
             </Stack>

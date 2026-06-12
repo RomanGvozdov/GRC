@@ -15,6 +15,8 @@ import {
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, errorText, type ControlListItem, type Framework } from "../api";
+import ImportModal from "../components/ImportModal";
+import { useSystem, withSystem } from "../systemContext";
 import { canManage, useAuth } from "../auth";
 import { EmptyRow, ImplBadge, useFetch } from "../components/shared";
 import { formatDate, IMPL_LABELS, toOptions } from "../labels";
@@ -34,7 +36,11 @@ export default function ControlsPage() {
     return params.toString();
   }, [search, statusFilter, frameworkFilter]);
 
-  const { data: controls } = useFetch<ControlListItem[]>(`/controls?${query}`);
+  const { systemId } = useSystem();
+  const { data: controls, reload } = useFetch<ControlListItem[]>(
+    withSystem(`/controls?${query}`, systemId), [systemId],
+  );
+  const [importOpen, setImportOpen] = useState(false);
   const { data: frameworks } = useFetch<Framework[]>("/frameworks");
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -81,7 +87,14 @@ export default function ControlsPage() {
               <Menu.Item onClick={() => download("csv")}>CSV</Menu.Item>
             </Menu.Dropdown>
           </Menu>
-          {canManage(user, "controls") && <Button onClick={() => setCreateOpen(true)}>Новий контроль</Button>}
+          {canManage(user, "controls") && (
+            <>
+              <Button variant="default" onClick={() => setImportOpen(true)}>
+                Імпорт
+              </Button>
+              <Button onClick={() => setCreateOpen(true)}>Новий контроль</Button>
+            </>
+          )}
         </Group>
       </Group>
 
@@ -117,13 +130,14 @@ export default function ControlsPage() {
               <Table.Th>Код</Table.Th>
               <Table.Th>Назва</Table.Th>
               <Table.Th>Статус</Table.Th>
+              <Table.Th>Системи</Table.Th>
               <Table.Th>Відповідальний</Table.Th>
               <Table.Th>Вимоги</Table.Th>
               <Table.Th>Наступна перевірка</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {controls.length === 0 && <EmptyRow colSpan={6} />}
+            {controls.length === 0 && <EmptyRow colSpan={7} />}
             {controls.map((control) => (
               <Table.Tr key={control.id}>
                 <Table.Td>
@@ -133,7 +147,16 @@ export default function ControlsPage() {
                 </Table.Td>
                 <Table.Td>{control.name}</Table.Td>
                 <Table.Td>
-                  <ImplBadge status={control.implementation_status} />
+                  <ImplBadge status={control.aggregate_status} />
+                </Table.Td>
+                <Table.Td>
+                  <Group gap={4}>
+                    {control.systems.map((s) => (
+                      <Badge key={s.id} variant="outline" size="sm" color="indigo">
+                        {s.name}
+                      </Badge>
+                    ))}
+                  </Group>
                 </Table.Td>
                 <Table.Td>{control.owner?.full_name ?? "—"}</Table.Td>
                 <Table.Td>
@@ -157,6 +180,12 @@ export default function ControlsPage() {
         </Table>
       )}
 
+      <ImportModal
+        opened={importOpen}
+        onClose={() => setImportOpen(false)}
+        kind="controls"
+        onImported={reload}
+      />
       <Modal opened={createOpen} onClose={() => setCreateOpen(false)} title="Новий контроль">
         <Stack>
           {error && <Badge color="red">{error}</Badge>}

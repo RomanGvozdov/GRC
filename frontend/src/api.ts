@@ -107,11 +107,31 @@ export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type ImplStatus = "not_implemented" | "partial" | "implemented" | "not_applicable";
 export type ControlType = "preventive" | "detective" | "corrective";
 
+export interface SystemBrief {
+  id: number;
+  code: string;
+  name: string;
+}
+
+export interface System extends SystemBrief {
+  description: string | null;
+  owner: UserBrief | null;
+  criticality: "low" | "medium" | "high" | "critical" | null;
+  status: "operational" | "development" | "decommissioned";
+  created_at: string;
+}
+
 export interface ControlBrief {
   id: number;
   code: string;
   name: string;
-  implementation_status: ImplStatus;
+}
+
+export interface GapControl {
+  id: number;
+  code: string;
+  name: string;
+  status: ImplStatus | null;
 }
 
 export interface RiskBrief {
@@ -127,6 +147,7 @@ export interface RiskBrief {
   residual_likelihood: number | null;
   residual_impact: number | null;
   treatment_strategy: TreatmentStrategy | null;
+  systems: SystemBrief[];
   inherent_score: number | null;
   residual_score: number | null;
   residual_level: RiskLevel | null;
@@ -201,21 +222,39 @@ export interface ControlListItem {
   name: string;
   control_type: ControlType | null;
   owner: UserBrief | null;
-  implementation_status: ImplStatus;
+  aggregate_status: ImplStatus;
+  systems: SystemBrief[];
   next_review_date: string | null;
   requirements: RequirementBrief[];
 }
 
-export interface Control extends ControlListItem {
-  description: string | null;
+export interface Implementation {
+  id: number;
+  system: SystemBrief | null;
+  implementation_status: ImplStatus;
   na_justification: string | null;
   review_period_months: number | null;
+  next_review_date: string | null;
   evidence: Evidence[];
+}
+
+export interface Control {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  control_type: ControlType | null;
+  owner: UserBrief | null;
+  requirements: RequirementBrief[];
+  implementations: Implementation[];
+  aggregate_status: ImplStatus;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface GapRow {
   requirement: Requirement;
-  controls: ControlBrief[];
+  controls: GapControl[];
   coverage: "covered" | "partial" | "not_covered" | "not_applicable";
 }
 
@@ -299,6 +338,7 @@ export interface AuditBrief {
   title: string;
   audit_type: AuditType;
   status: AuditStatus;
+  systems: SystemBrief[];
   framework: Framework | null;
   date_from: string | null;
   date_to: string | null;
@@ -346,6 +386,7 @@ export interface PolicyListItem {
   code: string;
   title: string;
   status: PolicyStatus;
+  systems: SystemBrief[];
   owner: UserBrief | null;
   next_review_date: string | null;
   version_number: number | null;
@@ -362,6 +403,7 @@ export interface Policy {
   status: PolicyStatus;
   owner: UserBrief | null;
   next_review_date: string | null;
+  systems: SystemBrief[];
   controls: ControlBrief[];
   versions: {
     id: number;
@@ -373,4 +415,22 @@ export interface Policy {
   }[];
   current_version: PolicyVersion | null;
   created_at: string;
+}
+
+export interface MyTask {
+  kind: string;
+  title: string;
+  entity_type: string;
+  entity_id: number;
+  entity_code: string;
+  due_date: string | null;
+  overdue: boolean;
+}
+
+export interface ImportReport {
+  total_rows: number;
+  valid_rows: number;
+  errors: { row: number; message: string }[];
+  created: number;
+  dry_run: boolean;
 }

@@ -16,6 +16,8 @@ import ReportsPage from "./pages/ReportsPage";
 import RolesPage from "./pages/RolesPage";
 import ApiTokensPage from "./pages/ApiTokensPage";
 import LoginPage from "./pages/LoginPage";
+import MyTasksPage from "./pages/MyTasksPage";
+import SystemsPage from "./pages/SystemsPage";
 import RiskDetailPage from "./pages/RiskDetailPage";
 import RisksPage from "./pages/RisksPage";
 import UsersPage from "./pages/UsersPage";
@@ -43,6 +45,7 @@ export default function App() {
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route element={<Layout />}>
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/my-tasks" element={<MyTasksPage />} />
         <Route path="/risks" element={<RisksPage />} />
         <Route path="/risks/:id" element={<RiskDetailPage />} />
         <Route path="/controls" element={<ControlsPage />} />
@@ -54,6 +57,7 @@ export default function App() {
         <Route path="/policies/:id" element={<PolicyDetailPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/audit-log" element={<AuditLogPage />} />
+        {user.role === "admin" && <Route path="/systems" element={<SystemsPage />} />}
         {user.role === "admin" && <Route path="/frameworks" element={<FrameworksPage />} />}
         {user.role === "admin" && <Route path="/users" element={<UsersPage />} />}
         {user.role === "admin" && <Route path="/roles" element={<RolesPage />} />}

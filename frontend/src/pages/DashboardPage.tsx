@@ -14,6 +14,7 @@ import {
 import { Link } from "react-router-dom";
 import type { Dashboard } from "../api";
 import { LevelBadge, useFetch } from "../components/shared";
+import { useSystem, withSystem } from "../systemContext";
 import { LEVEL_COLORS, LEVEL_LABELS, RISK_STATUS_LABELS } from "../labels";
 
 function heatColor(likelihood: number, impact: number): string {
@@ -83,7 +84,8 @@ function StatCard({ label, value, danger }: { label: string; value: number; dang
 }
 
 export default function DashboardPage() {
-  const { data } = useFetch<Dashboard>("/dashboard");
+  const { systemId } = useSystem();
+  const { data } = useFetch<Dashboard>(withSystem("/dashboard", systemId), [systemId]);
   if (!data) return <Loader />;
 
   return (

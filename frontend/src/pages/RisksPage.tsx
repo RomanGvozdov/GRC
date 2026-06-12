@@ -16,6 +16,8 @@ import {
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, errorText, type Category, type RiskBrief, type User } from "../api";
+import ImportModal from "../components/ImportModal";
+import { useSystem, withSystem } from "../systemContext";
 import { canManage, useAuth } from "../auth";
 import { EmptyRow, LevelBadge, useFetch } from "../components/shared";
 import { formatDate, RISK_STATUS_LABELS, toOptions } from "../labels";
@@ -35,7 +37,11 @@ export default function RisksPage() {
     return params.toString();
   }, [search, statusFilter, levelFilter]);
 
-  const { data: risks } = useFetch<RiskBrief[]>(`/risks?${query}`);
+  const { systemId } = useSystem();
+  const { data: risks, reload } = useFetch<RiskBrief[]>(
+    withSystem(`/risks?${query}`, systemId), [systemId],
+  );
+  const [importOpen, setImportOpen] = useState(false);
   const { data: categories } = useFetch<Category[]>("/risk-categories");
   const { data: users } = useFetch<User[]>("/users");
 
@@ -95,7 +101,12 @@ export default function RisksPage() {
             </Menu.Dropdown>
           </Menu>
           {canManage(user, "risks") && (
-            <Button onClick={() => setCreateOpen(true)}>Новий ризик</Button>
+            <>
+              <Button variant="default" onClick={() => setImportOpen(true)}>
+                Імпорт
+              </Button>
+              <Button onClick={() => setCreateOpen(true)}>Новий ризик</Button>
+            </>
           )}
         </Group>
       </Group>
@@ -168,6 +179,12 @@ export default function RisksPage() {
         </Table>
       )}
 
+      <ImportModal
+        opened={importOpen}
+        onClose={() => setImportOpen(false)}
+        kind="risks"
+        onImported={reload}
+      />
       <Modal opened={createOpen} onClose={() => setCreateOpen(false)} title="Новий ризик">
         <Stack>
           {error && <Badge color="red">{error}</Badge>}

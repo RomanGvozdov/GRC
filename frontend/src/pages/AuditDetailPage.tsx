@@ -7,6 +7,7 @@ import {
   Group,
   Loader,
   Modal,
+  MultiSelect,
   Select,
   Stack,
   Table,
@@ -17,7 +18,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, errorText, type Audit, type Framework, type User } from "../api";
+import { api, errorText, type Audit, type Framework, type SystemBrief, type User } from "../api";
 import { canEdit, canManage, useAuth } from "../auth";
 import { useFetch } from "../components/shared";
 import {
@@ -40,6 +41,8 @@ export default function AuditDetailPage() {
   const { data: audit, reload } = useFetch<Audit>(`/audits/${id}`);
   const { data: frameworks } = useFetch<Framework[]>("/frameworks");
   const { data: users } = useFetch<User[]>("/users");
+  const { data: allSystems } = useFetch<SystemBrief[]>("/systems");
+  const [systemIds, setSystemIds] = useState<string[]>([]);
 
   const [form, setForm] = useState<Record<string, string | null>>({});
   const [error, setError] = useState("");
@@ -58,6 +61,7 @@ export default function AuditDetailPage() {
         auditor_external: audit.auditor_external ?? "",
         status: audit.status,
       });
+      setSystemIds(audit.systems.map((s) => String(s.id)));
     }
   }, [audit]);
 
@@ -97,6 +101,7 @@ export default function AuditDetailPage() {
         auditor_id: form.auditor_id ? Number(form.auditor_id) : null,
         auditor_external: form.auditor_external || null,
         status: form.status,
+        system_ids: systemIds.map(Number),
       }),
     );
 
@@ -245,6 +250,14 @@ export default function AuditDetailPage() {
               disabled={!manager}
             />
           </Group>
+          <MultiSelect
+            label="Системи (ІКС) в області аудиту"
+            data={allSystems?.map((s) => ({ value: String(s.id), label: s.name })) ?? []}
+            value={systemIds}
+            onChange={setSystemIds}
+            searchable
+            disabled={!manager}
+          />
           <Textarea
             label="Область (scope)"
             value={form.scope ?? ""}

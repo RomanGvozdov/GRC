@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api, type AuditBrief, type Framework } from "../api";
 import { useFetch } from "../components/shared";
 import { downloadBlob } from "../labels";
+import { useSystem, withSystem } from "../systemContext";
 
 export default function ReportsPage() {
   const { data: frameworks } = useFetch<Framework[]>("/frameworks");
@@ -11,6 +12,7 @@ export default function ReportsPage() {
   const [auditId, setAuditId] = useState<string | null>(null);
   const [soaFramework, setSoaFramework] = useState<string | null>("iso27001");
   const [busy, setBusy] = useState<string | null>(null);
+  const { systemId } = useSystem();
 
   async function download(key: string, url: string, filename: string) {
     setBusy(key);
@@ -58,7 +60,11 @@ export default function ReportsPage() {
               disabled={!gapFramework}
               loading={busy === "gap"}
               onClick={() =>
-                void download("gap", `/reports/gap-analysis/${gapFramework}`, "gap_analysis.pdf")
+                void download(
+                  "gap",
+                  withSystem(`/reports/gap-analysis/${gapFramework}`, systemId),
+                  "gap_analysis.pdf",
+                )
               }
             >
               Завантажити
@@ -106,7 +112,11 @@ export default function ReportsPage() {
               disabled={!soaFramework}
               loading={busy === "soa"}
               onClick={() =>
-                void download("soa", `/reports/soa?framework_code=${soaFramework}`, "soa.pdf")
+                void download(
+                  "soa",
+                  withSystem(`/reports/soa?framework_code=${soaFramework}`, systemId),
+                  "soa.pdf",
+                )
               }
             >
               Завантажити

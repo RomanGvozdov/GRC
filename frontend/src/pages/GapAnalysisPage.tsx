@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Framework, GapSummary } from "../api";
 import { EmptyRow, ImplBadge, useFetch } from "../components/shared";
+import { useSystem, withSystem } from "../systemContext";
 import { COVERAGE_COLORS, COVERAGE_LABELS } from "../labels";
 
 export default function GapAnalysisPage() {
@@ -24,9 +25,12 @@ export default function GapAnalysisPage() {
     if (frameworks?.length && !frameworkId) setFrameworkId(String(frameworks[0].id));
   }, [frameworks, frameworkId]);
 
+  const { systemId } = useSystem();
   const { data: gap } = useFetch<GapSummary | null>(
-    frameworkId ? `/frameworks/${frameworkId}/gap-analysis` : "/frameworks",
-    [frameworkId],
+    frameworkId
+      ? withSystem(`/frameworks/${frameworkId}/gap-analysis`, systemId)
+      : "/frameworks",
+    [frameworkId, systemId],
   );
   const summary = frameworkId && gap && "coverage_percent" in gap ? (gap as GapSummary) : null;
 
@@ -98,7 +102,7 @@ export default function GapAnalysisPage() {
                           <Anchor component={Link} to={`/controls/${control.id}`} size="sm">
                             {control.code}
                           </Anchor>
-                          <ImplBadge status={control.implementation_status} />
+                          {control.status && <ImplBadge status={control.status} />}
                         </Group>
                       ))}
                     </Group>

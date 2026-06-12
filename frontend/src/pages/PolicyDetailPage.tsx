@@ -17,7 +17,7 @@ import {
 } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, errorText, type Policy, type User } from "../api";
+import { api, errorText, type Policy, type SystemBrief, type User } from "../api";
 import { canManage, useAuth } from "../auth";
 import { useFetch } from "../components/shared";
 import {
@@ -44,6 +44,8 @@ export default function PolicyDetailPage() {
   const { user } = useAuth();
   const { data: policy, reload } = useFetch<Policy>(`/policies/${id}`);
   const { data: users } = useFetch<User[]>("/users");
+  const { data: allSystems } = useFetch<SystemBrief[]>("/systems");
+  const [systemIds, setSystemIds] = useState<string[]>([]);
 
   const [content, setContent] = useState("");
   const [nextReview, setNextReview] = useState("");
@@ -60,6 +62,7 @@ export default function PolicyDetailPage() {
     if (policy) {
       setContent(policy.current_version?.content_md ?? "");
       setNextReview(policy.next_review_date ?? "");
+      setSystemIds(policy.systems.map((s) => String(s.id)));
     }
   }, [policy]);
 
@@ -94,6 +97,7 @@ export default function PolicyDetailPage() {
         owner_id: policy.owner?.id ?? null,
         next_review_date: nextReview || null,
         control_ids: policy.controls.map((c) => c.id),
+        system_ids: systemIds.map(Number),
       }),
     );
   const submit = () =>
@@ -244,6 +248,14 @@ export default function PolicyDetailPage() {
                 )}
               </Group>
               <Group mt="md" align="end">
+                <MultiSelect
+                  label="Системи (ІКС)"
+                  data={allSystems?.map((s) => ({ value: String(s.id), label: s.name })) ?? []}
+                  value={systemIds}
+                  onChange={setSystemIds}
+                  searchable
+                  w={280}
+                />
                 <TextInput
                   label="Наступний перегляд"
                   type="date"

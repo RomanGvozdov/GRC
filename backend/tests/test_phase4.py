@@ -332,3 +332,21 @@ def test_nd_tzi_seed_catalog(client, admin_headers):
 
     assert gap_total(sys_conf["id"]) == 84
     assert gap_total(sys_serv["id"]) == 97
+
+
+def test_nd_tzi_full_catalog_seed(client, admin_headers):
+    """Повний каталог заходів НД ТЗІ — усі заходи з усіх 20 класів."""
+    frameworks = client.get("/api/frameworks", headers=admin_headers).json()
+    full = next((f for f in frameworks if f["code"] == "nd-tzi-3-6-006-24-full"), None)
+    assert full is not None, "Повний каталог не засіявся"
+
+    reqs = client.get(
+        f"/api/frameworks/{full['id']}/requirements", headers=admin_headers
+    ).json()
+    assert len(reqs) > 300
+    codes = {r["code"] for r in reqs}
+    # заходи, яких немає в базових профілях, теж присутні
+    assert {"AC-16", "AC-21", "AU-10", "SR-7", "PM-1", "PT-1"} <= codes
+    # 20 класів за префіксом коду
+    families = {c.split("-")[0] for c in codes}
+    assert len(families) == 20

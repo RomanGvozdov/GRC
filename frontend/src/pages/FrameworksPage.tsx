@@ -36,6 +36,15 @@ export default function FrameworksPage() {
   const [reqCode, setReqCode] = useState("");
   const [reqTitle, setReqTitle] = useState("");
   const [reqProfiles, setReqProfiles] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  function toggle(id: number) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   async function call(fn: () => Promise<unknown>, after?: () => void) {
     setError("");
@@ -221,31 +230,61 @@ export default function FrameworksPage() {
             {selected && (
               <Table striped>
                 <Table.Tbody>
-                  {list?.map((req) => (
-                    <Table.Tr key={req.id}>
-                      <Table.Td w={100}>{req.code}</Table.Td>
-                      <Table.Td>
-                        {req.title}
-                        {req.profiles.map((p) => (
-                          <Badge key={p} size="xs" ml={6} variant="outline" color="violet">
-                            {PROFILE_SHORT[p] ?? p}
-                          </Badge>
-                        ))}
-                      </Table.Td>
-                      {selected.is_custom && (
-                        <Table.Td w={50}>
-                          <Button
-                            size="compact-xs"
-                            color="red"
-                            variant="subtle"
-                            onClick={() => void deleteRequirement(req.id)}
-                          >
-                            ✕
-                          </Button>
-                        </Table.Td>
-                      )}
-                    </Table.Tr>
-                  ))}
+                  {list?.map((req) => {
+                    const isOpen = expanded.has(req.id);
+                    const colSpan = selected.is_custom ? 3 : 2;
+                    return (
+                      <>
+                        <Table.Tr
+                          key={req.id}
+                          style={{ cursor: req.description ? "pointer" : "default" }}
+                          onClick={() => req.description && toggle(req.id)}
+                        >
+                          <Table.Td w={100}>
+                            {req.description ? (isOpen ? "▾ " : "▸ ") : ""}
+                            {req.code}
+                          </Table.Td>
+                          <Table.Td>
+                            {req.title}
+                            {req.profiles.map((p) => (
+                              <Badge key={p} size="xs" ml={6} variant="outline" color="violet">
+                                {PROFILE_SHORT[p] ?? p}
+                              </Badge>
+                            ))}
+                          </Table.Td>
+                          {selected.is_custom && (
+                            <Table.Td w={50}>
+                              <Button
+                                size="compact-xs"
+                                color="red"
+                                variant="subtle"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void deleteRequirement(req.id);
+                                }}
+                              >
+                                ✕
+                              </Button>
+                            </Table.Td>
+                          )}
+                        </Table.Tr>
+                        {isOpen && req.description && (
+                          <Table.Tr key={`${req.id}-desc`}>
+                            <Table.Td colSpan={colSpan}>
+                              <Text
+                                size="sm"
+                                c="dimmed"
+                                style={{ whiteSpace: "pre-wrap" }}
+                                pl="md"
+                              >
+                                {req.description}
+                              </Text>
+                            </Table.Td>
+                          </Table.Tr>
+                        )}
+                      </>
+                    );
+                  })}
                 </Table.Tbody>
               </Table>
             )}

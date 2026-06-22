@@ -34,6 +34,15 @@ export default function GapAnalysisPage() {
   );
   const summary = frameworkId && gap && "coverage_percent" in gap ? (gap as GapSummary) : null;
 
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  function toggle(id: number) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   return (
     <>
       <Group justify="space-between" mb="md">
@@ -86,29 +95,51 @@ export default function GapAnalysisPage() {
             </Table.Thead>
             <Table.Tbody>
               {summary.requirements.length === 0 && <EmptyRow colSpan={4} />}
-              {summary.requirements.map((row) => (
-                <Table.Tr key={row.requirement.id}>
-                  <Table.Td>{row.requirement.code}</Table.Td>
-                  <Table.Td>{row.requirement.title}</Table.Td>
-                  <Table.Td>
-                    <Badge color={COVERAGE_COLORS[row.coverage]} variant="light">
-                      {COVERAGE_LABELS[row.coverage]}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs">
-                      {row.controls.map((control) => (
-                        <Group key={control.id} gap={4}>
-                          <Anchor component={Link} to={`/controls/${control.id}`} size="sm">
-                            {control.code}
-                          </Anchor>
-                          {control.status && <ImplBadge status={control.status} />}
+              {summary.requirements.map((row) => {
+                const isOpen = expanded.has(row.requirement.id);
+                const desc = row.requirement.description;
+                return (
+                  <>
+                    <Table.Tr
+                      key={row.requirement.id}
+                      style={{ cursor: desc ? "pointer" : "default" }}
+                      onClick={() => desc && toggle(row.requirement.id)}
+                    >
+                      <Table.Td>
+                        {desc ? (isOpen ? "▾ " : "▸ ") : ""}
+                        {row.requirement.code}
+                      </Table.Td>
+                      <Table.Td>{row.requirement.title}</Table.Td>
+                      <Table.Td>
+                        <Badge color={COVERAGE_COLORS[row.coverage]} variant="light">
+                          {COVERAGE_LABELS[row.coverage]}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap="xs">
+                          {row.controls.map((control) => (
+                            <Group key={control.id} gap={4}>
+                              <Anchor component={Link} to={`/controls/${control.id}`} size="sm">
+                                {control.code}
+                              </Anchor>
+                              {control.status && <ImplBadge status={control.status} />}
+                            </Group>
+                          ))}
                         </Group>
-                      ))}
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
+                      </Table.Td>
+                    </Table.Tr>
+                    {isOpen && desc && (
+                      <Table.Tr key={`${row.requirement.id}-desc`}>
+                        <Table.Td colSpan={4}>
+                          <Text size="sm" c="dimmed" style={{ whiteSpace: "pre-wrap" }} pl="md">
+                            {desc}
+                          </Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    )}
+                  </>
+                );
+              })}
             </Table.Tbody>
           </Table>
         </>

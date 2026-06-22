@@ -23,16 +23,15 @@ from app.api import (
     users,
 )
 from app.config import get_settings
-from app.database import Base, SessionLocal, engine
-from app.migrate_legacy import migrate_legacy_schema
+from app.database import SessionLocal
+from app.migrations import run_migrations
 from app.seed import run_seed
 from app.services.notify import send_daily_digest
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    migrate_legacy_schema(engine)
+    run_migrations()
     with SessionLocal() as db:
         run_seed(db)
     scheduler = None

@@ -275,29 +275,60 @@ def test_base_profiles_nd_tzi(client, admin_headers):
 
 
 def test_nd_tzi_seed_catalog(client, admin_headers):
-    """Базовий профіль НД ТЗІ 3.6-006-24 має сідитись із 84 заходів."""
+    """Об'єднаний базовий профіль НД ТЗІ 3.6-006-24: 98 заходів, два профілі."""
     frameworks = client.get("/api/frameworks", headers=admin_headers).json()
     nd = next((f for f in frameworks if f["code"] == "nd-tzi-3-6-006-24"), None)
     assert nd is not None, "Каталог НД ТЗІ не засіявся"
-    assert nd["is_custom"] is True  # редагований, щоб додавати службову/посилені
+    assert nd["is_custom"] is True  # редагований, щоб додавати посилені заходи
 
+    # Без контексту системи — усі 98 заходів
     reqs = client.get(
         f"/api/frameworks/{nd['id']}/requirements", headers=admin_headers
     ).json()
-    assert len(reqs) == 84
-    codes = {r["code"] for r in reqs}
-    assert {"AC-2", "AU-3", "IR-8", "SC-13", "PL-2"} <= codes
-    # Усі заходи позначені профілем «конфіденційна»
-    assert all("confidential" in r["profiles"] for r in reqs)
+    assert len(reqs) == 98
+    by_code = {r["code"]: r for r in reqs}
+    assert {"AC-2", "AU-3", "IR-8", "SC-13", "PL-2"} <= set(by_code)
+    # Захід лише для конфіденційної та лише для службової
+    assert by_code["AC-6(10)"]["profiles"] == ["confidential"]
+    assert by_code["SR-2"]["profiles"] == ["service"]
+    # AC-2 належить обом профілям
+    assert set(by_code["AC-2"]["profiles"]) == {"confidential", "service"}
 
-    # Система з профілем «службова» не бачить цих вимог у gap-аналізі
+    # Системи з різними профілями
+    sys_conf = client.post(
+        "/api/systems",
+        json={"name": "АС конфіденційна НД ТЗІ", "profile_type": "confidential"},
+        headers=admin_headers,
+    ).json()
     sys_serv = client.post(
         "/api/systems",
-        json={"name": "АС службова для НД ТЗІ", "profile_type": "service"},
+        json={"name": "АС службова НД ТЗІ", "profile_type": "service"},
         headers=admin_headers,
     ).json()
-    gap = client.get(
-        f"/api/frameworks/{nd['id']}/gap-analysis?system_id={sys_serv['id']}",
+
+    conf_reqs = client.get(
+        f"/api/frameworks/{nd['id']}/requirements?system_id={sys_conf['id']}",
         headers=admin_headers,
     ).json()
-    assert gap["total"] == 0  # жодна конфіденційна вимога не застосовна до службової
+    serv_reqs = client.get(
+        f"/api/frameworks/{nd['id']}/requirements?system_id={sys_serv['id']}",
+        headers=admin_headers,
+    ).json()
+    assert len(conf_reqs) == 84
+    assert len(serv_reqs) == 97
+
+    # AC-2 має РІЗНИЙ текст під профіль (службова — суворіша)
+    ac2_conf = next(r for r in conf_reqs if r["code"] == "AC-2")["description"]
+    ac2_serv = next(r for r in serv_reqs if r["code"] == "AC-2")["description"]
+    assert ac2_conf != ac2_serv
+    assert len(ac2_serv) > len(ac2_conf)
+
+    # Gap-аналіз поважає профіль системи
+    def gap_total(system_id):
+        return client.get(
+            f"/api/frameworks/{nd['id']}/gap-analysis?system_id={system_id}",
+            headers=admin_headers,
+        ).json()["total"]
+
+    assert gap_total(sys_conf["id"]) == 84
+    assert gap_total(sys_serv["id"]) == 97

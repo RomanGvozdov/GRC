@@ -27,7 +27,10 @@ def _add_missing_columns(engine: Engine) -> None:
     inspector = inspect(engine)
     additions = {
         "systems": [("profile_type", "VARCHAR(16)")],
-        "requirements": [("profile_types", "VARCHAR(64)")],
+        "requirements": [
+            ("profile_types", "VARCHAR(64)"),
+            ("profile_descriptions", "JSON"),
+        ],
     }
     with engine.begin() as conn:
         for table, columns in additions.items():

@@ -1,7 +1,18 @@
 import enum
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -53,6 +64,9 @@ class Requirement(Base):
     description: Mapped[str | None] = mapped_column(Text)
     # Базові профілі, до яких належить вимога: "confidential,service" (порожньо = всі)
     profile_types: Mapped[str | None] = mapped_column(String(64))
+    # Текст вимоги під конкретний профіль, коли він відрізняється:
+    # {"confidential": "...", "service": "..."}; якщо немає — береться description
+    profile_descriptions: Mapped[dict | None] = mapped_column(JSON)
 
     framework: Mapped[Framework] = relationship(back_populates="requirements")
     controls = relationship(

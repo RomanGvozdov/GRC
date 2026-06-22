@@ -72,6 +72,7 @@ def seed_frameworks(db: Session) -> None:
                     title=req["title"],
                     description=req.get("description"),
                     profile_types=",".join(profiles) or None,
+                    profile_descriptions=req.get("profile_descriptions"),
                 )
             )
         db.commit()

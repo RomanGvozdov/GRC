@@ -28,13 +28,23 @@ def list_frameworks(db: Session = Depends(get_db), _: User = Depends(get_current
 
 @router.get("/{framework_id}/requirements", response_model=list[RequirementOut])
 def list_requirements(
-    framework_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    framework_id: int,
+    system_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
 ):
     if db.get(Framework, framework_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Фреймворк не знайдено")
-    return db.scalars(
+    profile_type = None
+    if system_id:
+        system = db.get(InformationSystem, system_id)
+        profile_type = system.profile_type if system else None
+    requirements = db.scalars(
         select(Requirement).where(Requirement.framework_id == framework_id).order_by(Requirement.id)
     ).all()
+    if profile_type:
+        requirements = [r for r in requirements if requirement_applies(r, profile_type)]
+    return [requirement_out(r, profile_type) for r in requirements]
 
 
 @router.post("", response_model=FrameworkOut, status_code=status.HTTP_201_CREATED)
@@ -101,6 +111,16 @@ def requirement_applies(requirement: Requirement, profile_type: str | None) -> b
     if not profile_type:
         return True  # система без типу профілю — показуємо все
     return profile_type in requirement.profile_types.split(",")
+
+
+def requirement_out(requirement: Requirement, profile_type: str | None = None) -> RequirementOut:
+    """RequirementOut із текстом під обраний профіль (якщо він відрізняється)."""
+    out = RequirementOut.model_validate(requirement)
+    if profile_type and requirement.profile_descriptions:
+        specific = requirement.profile_descriptions.get(profile_type)
+        if specific:
+            out.description = specific
+    return out
 
 
 def _custom_framework(db: Session, framework_id: int) -> Framework:
@@ -217,7 +237,7 @@ def gap_analysis(
         counts[coverage] += 1
         items.append(
             GapRequirement(
-                requirement=RequirementOut.model_validate(requirement),
+                requirement=requirement_out(requirement, profile_type),
                 controls=[
                     GapControl(
                         id=c.id, code=c.code, name=c.name,

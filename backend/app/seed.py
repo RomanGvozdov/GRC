@@ -64,12 +64,14 @@ def seed_frameworks(db: Session) -> None:
         db.add(framework)
         db.flush()
         for req in data["requirements"]:
+            profiles = req.get("profiles") or []
             db.add(
                 Requirement(
                     framework_id=framework.id,
                     code=req["code"],
                     title=req["title"],
                     description=req.get("description"),
+                    profile_types=",".join(profiles) or None,
                 )
             )
         db.commit()

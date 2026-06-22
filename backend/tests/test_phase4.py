@@ -228,8 +228,8 @@ def test_base_profiles_nd_tzi(client, admin_headers):
     response = client.post(
         "/api/frameworks/import",
         json={
-            "code": "nd-tzi-3-6-006-24",
-            "name": "НД ТЗІ 3.6-006-24 (тест)",
+            "code": "nd-tzi-test-profiles",
+            "name": "НД ТЗІ (тест профілів)",
             "requirements": [
                 {"code": "Т-1", "title": "Спільна вимога", "profiles": []},
                 {"code": "Т-2", "title": "Лише конфіденційна", "profiles": ["confidential"]},
@@ -272,3 +272,32 @@ def test_base_profiles_nd_tzi(client, admin_headers):
     # Службова система: спільна + службова
     codes, total = gap_codes(sys_serv["id"])
     assert codes == {"Т-1", "Т-3"} and total == 2
+
+
+def test_nd_tzi_seed_catalog(client, admin_headers):
+    """Базовий профіль НД ТЗІ 3.6-006-24 має сідитись із 84 заходів."""
+    frameworks = client.get("/api/frameworks", headers=admin_headers).json()
+    nd = next((f for f in frameworks if f["code"] == "nd-tzi-3-6-006-24"), None)
+    assert nd is not None, "Каталог НД ТЗІ не засіявся"
+    assert nd["is_custom"] is True  # редагований, щоб додавати службову/посилені
+
+    reqs = client.get(
+        f"/api/frameworks/{nd['id']}/requirements", headers=admin_headers
+    ).json()
+    assert len(reqs) == 84
+    codes = {r["code"] for r in reqs}
+    assert {"AC-2", "AU-3", "IR-8", "SC-13", "PL-2"} <= codes
+    # Усі заходи позначені профілем «конфіденційна»
+    assert all("confidential" in r["profiles"] for r in reqs)
+
+    # Система з профілем «службова» не бачить цих вимог у gap-аналізі
+    sys_serv = client.post(
+        "/api/systems",
+        json={"name": "АС службова для НД ТЗІ", "profile_type": "service"},
+        headers=admin_headers,
+    ).json()
+    gap = client.get(
+        f"/api/frameworks/{nd['id']}/gap-analysis?system_id={sys_serv['id']}",
+        headers=admin_headers,
+    ).json()
+    assert gap["total"] == 0  # жодна конфіденційна вимога не застосовна до службової

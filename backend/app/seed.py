@@ -63,14 +63,18 @@ def seed_frameworks(db: Session) -> None:
         )
         db.add(framework)
         db.flush()
+        import re
+
         for req in data["requirements"]:
             profiles = req.get("profiles") or []
+            fam = re.match(r"^([A-Za-z]{2})-", req["code"])
             db.add(
                 Requirement(
                     framework_id=framework.id,
                     code=req["code"],
                     title=req["title"],
                     description=req.get("description"),
+                    family=fam.group(1).upper() if fam else None,
                     profile_types=",".join(profiles) or None,
                     profile_descriptions=req.get("profile_descriptions"),
                 )

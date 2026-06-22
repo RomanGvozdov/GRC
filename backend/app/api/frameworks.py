@@ -14,16 +14,64 @@ from app.models import (
     User,
     effective_status_for_system,
 )
-from app.schemas import FrameworkOut, GapControl, GapRequirement, GapSummary, RequirementOut
+from app.schemas import (
+    FrameworkOut,
+    GapControl,
+    GapRequirement,
+    GapSummary,
+    RequirementOut,
+    RequirementTreeNode,
+)
 from app.schemas_phase2 import FrameworkImportIn, FrameworkIn, RequirementIn
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/frameworks", tags=["compliance"])
 
+_REQ_LOAD = [selectinload(Requirement.parameters)]
+
 
 @router.get("", response_model=list[FrameworkOut])
 def list_frameworks(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return db.scalars(select(Framework).order_by(Framework.id)).all()
+
+
+@router.get("/{framework_id}/controls", response_model=list[RequirementTreeNode])
+def list_controls(
+    framework_id: int,
+    tree: bool = True,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Контролі каталогу. tree=true — ієрархія базовий контроль → enhancements,
+    з ODP-параметрами (ТЗ §5.3)."""
+    if db.get(Framework, framework_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Фреймворк не знайдено")
+    reqs = db.scalars(
+        select(Requirement)
+        .where(Requirement.framework_id == framework_id)
+        .options(*_REQ_LOAD)
+        .order_by(Requirement.id)
+    ).all()
+
+    # model_validate сам підтягнув би ORM-relationship children — скидаємо,
+    # щоб зібрати ієрархію явно (і коректно для tree=false).
+    nodes: dict[int, RequirementTreeNode] = {}
+    for r in reqs:
+        node = RequirementTreeNode.model_validate(r)
+        node.children = []
+        nodes[r.id] = node
+
+    if not tree:
+        return list(nodes.values())
+
+    roots: list[RequirementTreeNode] = []
+    for r in reqs:
+        node = nodes[r.id]
+        if r.parent_id and r.parent_id in nodes:
+            nodes[r.parent_id].children.append(node)
+        else:
+            roots.append(node)
+    return roots
 
 
 @router.get("/{framework_id}/requirements", response_model=list[RequirementOut])
@@ -40,7 +88,10 @@ def list_requirements(
         system = db.get(InformationSystem, system_id)
         profile_type = system.profile_type if system else None
     requirements = db.scalars(
-        select(Requirement).where(Requirement.framework_id == framework_id).order_by(Requirement.id)
+        select(Requirement)
+        .where(Requirement.framework_id == framework_id)
+        .options(*_REQ_LOAD)
+        .order_by(Requirement.id)
     ).all()
     if profile_type:
         requirements = [r for r in requirements if requirement_applies(r, profile_type)]
@@ -79,6 +130,7 @@ def import_framework(
                 code=req.code,
                 title=req.title,
                 description=req.description,
+                family=family_from_code(req.code),
                 profile_types=_profiles_to_str(req.profiles),
             )
         )
@@ -91,6 +143,13 @@ def import_framework(
 
 
 _VALID_PROFILES = {p.value for p in ProfileType}
+
+
+def family_from_code(code: str) -> str | None:
+    import re
+
+    m = re.match(r"^([A-Za-z]{2})-", code or "")
+    return m.group(1).upper() if m else None
 
 
 def _profiles_to_str(profiles: list[str]) -> str | None:
@@ -151,6 +210,7 @@ def add_requirement(
         code=body.code,
         title=body.title,
         description=body.description,
+        family=family_from_code(body.code),
         profile_types=_profiles_to_str(body.profiles),
     )
     db.add(requirement)

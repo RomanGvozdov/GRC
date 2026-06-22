@@ -231,7 +231,17 @@ class FrameworkOut(ORMModel):
     code: str
     name: str
     version: str | None
+    source: str = "manual"
     is_custom: bool
+
+
+class ControlParameterOut(ORMModel):
+    id: int
+    key: str
+    label: str | None
+    guidance: str | None
+    constraints: dict | None
+    default_value: str | None
 
 
 class RequirementOut(ORMModel):
@@ -239,12 +249,19 @@ class RequirementOut(ORMModel):
     code: str
     title: str
     description: str | None
+    family: str | None = None
+    parent_id: int | None = None
+    parameters: list[ControlParameterOut] = []
     profile_types: str | None = Field(default=None, exclude=True)
 
     @computed_field
     @property
     def profiles(self) -> list[str]:
         return [p for p in (self.profile_types or "").split(",") if p]
+
+
+class RequirementTreeNode(RequirementOut):
+    children: list["RequirementTreeNode"] = []
 
 
 class RequirementBrief(ORMModel):

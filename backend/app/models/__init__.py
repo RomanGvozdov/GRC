@@ -18,7 +18,9 @@ from app.models.policies import (
     policy_controls,
 )
 from app.models.compliance import (
+    CatalogSource,
     Control,
+    ControlParameter,
     ControlType,
     Evidence,
     Framework,
@@ -73,7 +75,9 @@ __all__ = [
     "policy_controls",
     "AuditLogEntry",
     "Comment",
+    "CatalogSource",
     "Control",
+    "ControlParameter",
     "ControlImplementation",
     "InformationSystem",
     "ProfileType",

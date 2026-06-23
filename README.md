@@ -79,6 +79,26 @@ curl -H "Authorization: Bearer grc_..." https://grc.company.ua/api/risks
 
 OpenAPI-специфікація: `/docs`.
 
+## AI-функції (опційно)
+
+Семантичний пошук/Q&A (ТЗ §9). Вимкнено за замовчуванням; для КСЗІ — лише локальна модель.
+
+```bash
+# 1) у .env: AI_ENABLED=true (моделі за замовч.: qwen2.5:7b + bge-m3)
+# 2) підняти стек разом із вбудованим Ollama (профіль "ai"):
+docker compose --profile ai up -d --build
+# 3) один раз завантажити моделі в Ollama:
+docker compose exec ollama ollama pull qwen2.5:7b
+docker compose exec ollama ollama pull bge-m3
+# 4) у вебі: «AI-пошук» → «Переіндексувати», далі ставте запитання
+```
+
+Перевірка стану — `GET /api/ai/status` (адмін): `enabled` і `vector_ready` мають бути `true`.
+Без профілю `ai` сервіс Ollama не запускається. Зовнішній LLM-сервер — вкажіть його
+URL у `AI_BASE_URL` і не використовуйте профіль `ai`.
+Ресурси: 7–8B модель — орієнтовно 16–24 ГБ RAM (або GPU). `AI_EMBED_DIM` (1024 для
+bge-m3) фіксується при першому старті — задайте під свою embed-модель заздалегідь.
+
 ## Міграції схеми БД
 
 Схема керується **Alembic**. При старті застосунок сам застосовує всі ревізії

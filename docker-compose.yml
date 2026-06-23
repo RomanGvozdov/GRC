@@ -37,7 +37,7 @@ services:
       DIGEST_HOUR: ${DIGEST_HOUR:-8}
       AI_ENABLED: ${AI_ENABLED:-false}
       AI_PROVIDER: ${AI_PROVIDER:-openai_compat}
-      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_BASE_URL: ${AI_BASE_URL:-http://ollama:11434/v1}
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-}
       AI_EMBED_MODEL: ${AI_EMBED_MODEL:-}
@@ -57,6 +57,26 @@ services:
       - backend
     restart: unless-stopped
 
+  # Локальний LLM-сервер (OpenAI-сумісний) для AI-функцій (ТЗ §9).
+  # Запускається лише з профілем "ai": `docker compose --profile ai up -d`.
+  # КСЗІ: модель локальна, дані не покидають периметр.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    volumes:
+      - ollama:/root/.ollama
+    # Порт назовні не публікуємо — доступ лише з backend по внутрішній мережі.
+    # Для GPU розкоментуйте (потрібен nvidia-container-toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    restart: unless-stopped
+
 volumes:
   pgdata:
   uploads:
+  ollama:

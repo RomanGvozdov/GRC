@@ -40,6 +40,7 @@ from app.models.risks import (
     risk_level,
     risk_level_label,
 )
+from app.models.ai import AISuggestion
 from app.models.rbac import APIToken, CustomRole
 from app.models.systems import (
     ControlImplementation,
@@ -56,6 +57,7 @@ from app.models.systems import (
 from app.models.users import RecoveryCode, Role, User
 
 __all__ = [
+    "AISuggestion",
     "APIToken",
     "ActionStatus",
     "CustomRole",

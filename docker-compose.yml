@@ -1,6 +1,8 @@
 services:
   db:
-    image: postgres:16-alpine
+    # pgvector/pgvector — це postgres:16 + розширення vector (для AI-RAG, ТЗ §9);
+    # повністю сумісний з postgres:16, наявні дані не зачіпає
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: grc
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD у .env}
@@ -33,6 +35,13 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       DIGEST_HOUR: ${DIGEST_HOUR:-8}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-openai_compat}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_EMBED_MODEL: ${AI_EMBED_MODEL:-}
+      AI_EMBED_DIM: ${AI_EMBED_DIM:-1024}
     volumes:
       - uploads:/data/uploads
     depends_on:

@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
+    ai,
     audit,
     audits,
     imports,
@@ -87,6 +88,7 @@ api_routers = [
     exports.router,
     audit.router,
     comments.router,
+    ai.router,
 ]
 for router in api_routers:
     app.include_router(router, prefix="/api")

@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     digest_hour: int = 8  # година щоденного дайджесту (Europe/Kyiv)
     scheduler_enabled: bool = True
 
+    # AI (ТЗ §9). Вимкнено за замовчуванням; у КСЗІ-режимі — лише локальна модель,
+    # дані не покидають периметр. Провайдер — OpenAI-сумісний (Ollama/vLLM).
+    ai_enabled: bool = False
+    ai_provider: str = "openai_compat"
+    ai_base_url: str = ""  # напр. http://ollama:11434/v1
+    ai_api_key: str = ""  # для локальних — зазвичай порожній
+    ai_model: str = ""  # напр. llama3.1, qwen2.5
+    ai_embed_model: str = ""  # напр. bge-m3
+    ai_embed_dim: int = 1024  # розмірність ембедінгів (bge-m3 = 1024)
+
 
 @lru_cache
 def get_settings() -> Settings:

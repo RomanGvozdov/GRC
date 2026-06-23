@@ -45,7 +45,31 @@ export default function UsersPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<string | null>("reader");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const [resetUser, setResetUser] = useState<User | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+
+  async function doResetPassword() {
+    if (!resetUser || resetPassword.length < 12) return;
+    setError("");
+    setSuccess("");
+    setBusy(true);
+    try {
+      await api.patch(`/users/${resetUser.id}`, { password: resetPassword });
+      setSuccess(
+        `Пароль для ${resetUser.email} змінено. Повідомте новий пароль користувачу — ` +
+          "усі його поточні сесії завершено.",
+      );
+      setResetUser(null);
+      setResetPassword("");
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function createUser() {
     setError("");
@@ -83,6 +107,11 @@ export default function UsersPage() {
       {error && (
         <Alert color="red" mb="md" onClose={() => setError("")} withCloseButton>
           {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert color="green" mb="md" onClose={() => setSuccess("")} withCloseButton>
+          {success}
         </Alert>
       )}
 
@@ -136,18 +165,31 @@ export default function UsersPage() {
                 </Table.Td>
                 <Table.Td>{formatDate(row.created_at)}</Table.Td>
                 <Table.Td>
-                  {row.totp_enabled && (
+                  <Group gap="xs">
                     <Button
                       size="compact-xs"
                       variant="subtle"
                       onClick={() => {
-                        if (window.confirm(`Скинути 2FA для ${row.email}?`))
-                          void patch(row.id, { reset_totp: true });
+                        setResetUser(row);
+                        setResetPassword("");
                       }}
                     >
-                      Скинути 2FA
+                      Скинути пароль
                     </Button>
-                  )}
+                    {row.totp_enabled && (
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color="orange"
+                        onClick={() => {
+                          if (window.confirm(`Скинути 2FA для ${row.email}?`))
+                            void patch(row.id, { reset_totp: true });
+                        }}
+                      >
+                        Скинути 2FA
+                      </Button>
+                    )}
+                  </Group>
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -184,6 +226,29 @@ export default function UsersPage() {
             disabled={!email || !fullName || password.length < 12}
           >
             Створити
+          </Button>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={resetUser !== null}
+        onClose={() => setResetUser(null)}
+        title={resetUser ? `Скинути пароль: ${resetUser.full_name}` : ""}
+      >
+        <Stack>
+          <PasswordInput
+            label="Новий пароль"
+            description="Мінімум 12 символів. Усі поточні сесії користувача буде завершено."
+            value={resetPassword}
+            onChange={(e) => setResetPassword(e.currentTarget.value)}
+            required
+          />
+          <Button
+            onClick={() => void doResetPassword()}
+            loading={busy}
+            disabled={resetPassword.length < 12}
+          >
+            Скинути пароль
           </Button>
         </Stack>
       </Modal>

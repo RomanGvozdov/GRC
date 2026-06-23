@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: "/policies", label: "Політики", module: "policies" },
   { to: "/reports", label: "Звіти", module: "reports" },
   { to: "/audit-log", label: "Журнал дій", module: "audit_log" },
+  { to: "/ai-search", label: "AI-пошук", module: null },
 ];
 
 export default function Layout() {

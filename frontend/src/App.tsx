@@ -16,6 +16,7 @@ import ReportsPage from "./pages/ReportsPage";
 import RolesPage from "./pages/RolesPage";
 import ApiTokensPage from "./pages/ApiTokensPage";
 import LoginPage from "./pages/LoginPage";
+import AiSearchPage from "./pages/AiSearchPage";
 import MyTasksPage from "./pages/MyTasksPage";
 import SystemsPage from "./pages/SystemsPage";
 import RiskDetailPage from "./pages/RiskDetailPage";
@@ -46,6 +47,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/my-tasks" element={<MyTasksPage />} />
+        <Route path="/ai-search" element={<AiSearchPage />} />
         <Route path="/risks" element={<RisksPage />} />
         <Route path="/risks/:id" element={<RiskDetailPage />} />
         <Route path="/controls" element={<ControlsPage />} />

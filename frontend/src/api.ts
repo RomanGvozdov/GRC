@@ -436,3 +436,15 @@ export interface ImportReport {
   created: number;
   dry_run: boolean;
 }
+
+export interface AiCitation {
+  source_type: string;
+  source_id: number;
+  score: number;
+}
+
+export interface AiAnswer {
+  answer: string;
+  citations: AiCitation[];
+  suggestion_id: number;
+}

@@ -29,6 +29,7 @@
 | `61dbc2d` | **Передумова §11: Alembic.** Старт застосунку робить `alembic upgrade head` (`app/migrations.py`) замість `create_all`. Базова ревізія `0001` idempotent (create_all) — безпечна для наявного прод-DB. `env.py`: compare_type + batch для SQLite. |
 | `0237e72` | **Інкр.1, зріз «Каталог 2.0» (ревізія `0002`).** `Requirement.parent_id` (enhancements) + `family`; `Framework.source`; нова `ControlParameter` (ODP). `GET /frameworks/{id}/controls?tree=true`. Бекфіл `family` з коду. |
 | `50f69cc` | **AI-інфраструктура §9 (ревізія `0003`).** Конфіг `AI_*` (off за замовч.); `services/ai/provider.py` (OpenAI-сумісний chat/embed); `services/ai/store.py` (pgvector RAG, raw SQL, Postgres-only); модель `AISuggestion` (провенанс); `GET /api/ai/status`; образ БД → `pgvector/pgvector:pg16`. |
+| (цей) | **AI-сценарій 1: семантичний Q&A §9.** `POST /api/ai/index` (індексація вимог/контролів/політик у `ai_document_chunks`), `POST /api/ai/ask` (RAG: embed→search→chat з обов'язковими цитатами, запис у `AISuggestion`), `GET /api/ai/suggestions` (журнал). Фронтенд: сторінка «AI-пошук». Тести з моком провайдера/сховища (без мережі). |
 
 ### Ключові інваріанти, які треба тримати
 
@@ -45,18 +46,10 @@
 
 ## Далі (черга)
 
-### → НАСТУПНЕ: AI-сценарій 1 — семантичний пошук / Q&A (ТЗ §9, сценарій 1)
-Фундамент готовий (provider + store + AISuggestion). Лишилось:
-- Індексація джерел у `ai_document_chunks`: контролі/вимоги каталогів, політики
-  (текст → `provider.embed` → `store.upsert_chunk`). Ендпоінт на кшталт
-  `POST /api/ai/index` (admin) або фонове завдання; джерела: `requirement`, `policy`, `control`.
-- Запит: `POST /api/ai/ask` — embed запиту → `store.search(k)` → зібрати контекст →
-  `provider.chat` з **обов'язковими цитатами на джерела** → відповідь + запис у
-  `AISuggestion` (kind="qa", prompt_hash, citations). Лише retrieval, без зміни стану.
-- UI: проста сторінка/модал «AI-пошук» (адмін або за дозволом), показ відповіді + цитат.
-- Тести: при `AI_ENABLED=false` ендпоінти повертають 503/зрозумілу помилку; мок
-  провайдера для перевірки складання цитат і запису провенансу (без реальної мережі).
-- **Без реальної моделі в тестах** — мокати `AIProvider.embed/chat`.
+### → НАСТУПНЕ: Інкремент 1, зріз Baseline + категоризація ІКС (ревізія `0004`)
+(AI-сценарій 1 — зроблено.) Деталі нижче в «Інкремент 1, що лишилось».
+Перевірити на бойовому Postgres: `POST /api/ai/index` (потрібен pgvector + AI_ENABLED),
+тоді `POST /api/ai/ask`. У тестах усе мокано.
 
 ### Інкремент 1, що лишилось (RMF-конвеєр)
 - **Baseline + категоризація ІКС (ревізія `0004`):** `Baseline`+`BaselineItem`;

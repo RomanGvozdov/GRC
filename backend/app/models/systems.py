@@ -109,6 +109,7 @@ class ControlImplementation(Base):
     )
     implementation_status: Mapped[str] = mapped_column(String(32), default="not_implemented")
     na_justification: Mapped[str | None] = mapped_column(Text)
+    narrative: Mapped[str | None] = mapped_column(Text)  # опис впровадження (ТЗ §6)
     review_period_months: Mapped[int | None] = mapped_column(Integer)
     next_review_date: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

@@ -424,6 +424,47 @@ class ApplyOverlayIn(BaseModel):
         return v.strip()
 
 
+# --- SSP (план безпеки системи, ТЗ §6) ---
+
+class SSPGenerateIn(BaseModel):
+    profile_id: int
+    title: str | None = Field(default=None, max_length=255)
+    system_description: str | None = None
+
+
+class SSPControlOut(ORMModel):
+    id: int
+    requirement: RequirementBrief
+    implementation_status: ImplementationStatus
+    narrative: str | None
+    responsible: UserBrief | None
+
+
+class SSPControlIn(BaseModel):
+    implementation_status: ImplementationStatus | None = None
+    narrative: str | None = None
+    responsible_id: int | None = None
+
+
+class SSPOut(ORMModel):
+    id: int
+    system_id: int
+    profile_id: int | None
+    parent_ssp_id: int | None
+    title: str
+    version: int
+    status: str
+    system_description: str | None
+    created_at: datetime
+    approved_at: datetime | None
+    control_count: int = 0
+    implemented_count: int = 0
+
+
+class SSPDetailOut(SSPOut):
+    controls: list[SSPControlOut] = []
+
+
 class EvidenceOut(ORMModel):
     id: int
     kind: str

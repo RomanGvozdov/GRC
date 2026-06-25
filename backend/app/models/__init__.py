@@ -54,6 +54,7 @@ from app.models.profiles import (
     TailoringDecision,
 )
 from app.models.rbac import APIToken, CustomRole
+from app.models.ssp import SSP, SSPControl, SSPStatus
 from app.models.systems import (
     ControlImplementation,
     ImpactLevel,
@@ -86,6 +87,9 @@ __all__ = [
     "ProfileStatus",
     "TailoringAction",
     "TailoringDecision",
+    "SSP",
+    "SSPControl",
+    "SSPStatus",
     "CustomRole",
     "ApprovalDecision",
     "Audit",

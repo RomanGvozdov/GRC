@@ -228,6 +228,37 @@ export interface ResolvedProfile {
   controls: ResolvedControl[];
 }
 
+// --- SSP (план безпеки системи, ТЗ §6) ---
+
+export type SSPStatus = "draft" | "approved" | "superseded";
+
+export interface SSPControl {
+  id: number;
+  requirement: RequirementBrief;
+  implementation_status: ImplStatus;
+  narrative: string | null;
+  responsible: UserBrief | null;
+}
+
+export interface SSP {
+  id: number;
+  system_id: number;
+  profile_id: number | null;
+  parent_ssp_id: number | null;
+  title: string;
+  version: number;
+  status: SSPStatus;
+  system_description: string | null;
+  created_at: string;
+  approved_at: string | null;
+  control_count: number;
+  implemented_count: number;
+}
+
+export interface SSPDetail extends SSP {
+  controls: SSPControl[];
+}
+
 export interface ControlBrief {
   id: number;
   code: string;

@@ -9,6 +9,10 @@
 - Працюємо в гілці **`claude/awesome-planck-76efci`**.
 - Тести: **58 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
 - Alembic head = **`0005`**. Наступна ревізія схеми має бути **`0006`**.
+- **Каталог НД ТЗІ — це тепер повний 800-53 Rev 5 (1189 заходів, багатий текст)** з трьома
+  профілями (конфіденц./ДСК/реєстри). На розгорнутому сервері старий тонкий каталог
+  оновиться автоматично при рестарті (refresh за версією); орфанний `nd-tzi-3-6-006-24-full`
+  (315) лишиться — видалити в UI вручну.
 - **Інкремент 1 (RMF-конвеєр) — повністю зроблено** (Каталог 2.0 → Baseline+категоризація
   → Profile+tailoring). Лишився **OSCAL-імпорт** — чекає офіційний файл від користувача.
 - **→ НАСТУПНЕ:** **Інкремент 2 — SSP + POA&M** (ревізія `0006`). Деталі — у розділі «Далі».
@@ -45,6 +49,7 @@
 | `69e0905` | **Вбудований Ollama в docker-compose** (профіль `ai`). Локальний OpenAI-сумісний LLM; порт назовні не публікується (доступ лише з backend). Том `ollama`. README: інструкція підняття + `ollama pull`. Дефолти: `qwen2.5:7b` + `bge-m3` (embed_dim 1024). |
 | `318ee2a` | **UI «Скинути пароль» для адміна** на сторінці «Користувачі» (модалка → `PATCH /users/{id} {password}`, ≥12 символів). Усі сесії користувача анулюються (`token_version`). Тест `test_password_reset.py`. |
 | `e5ace39` | **Інкр.1, зріз «Baseline + категоризація ІКС» (ревізія `0004`).** Моделі `Baseline`/`BaselineItem` (+`BaselineLevel`); `InformationSystem.impact_c/i/a` (+`ImpactLevel`). API: `GET/POST /baselines`, `GET /baselines/{id}`; `PUT /systems/{id}/categorization` (impacts→high-water-mark або профіль НД ТЗІ → `suggested_baseline_id`, human-in-the-loop). Сид: профілі НД ТЗІ (confidential 84 / service 97) → baselines. Фронт: сторінка «Базові набори» + блок категоризації на сторінці систем. Тести `test_baselines.py`. |
+| (цей) | **Багатий каталог НД ТЗІ (повний 800-53 Rev 5) + 3 профілі.** З Excel/Word користувача згенеровано єдиний каталог `nd-tzi-3-6-006-24` — **1189 заходів** (текст + рекомендації), ієрархія базовий→посилення (`parent_id`), 20 родин. Три baselines: конфіденц. (84), ДСК/службова (97), **галузевий реєстровий (119)**. Додано `ProfileType.REGISTRY` + `BaselineLevel.ND_REGISTRY` (String-колонки → без міграції). Конвертер `backend/scripts/build_catalogs.py`; джерела в `docs/nd-tzi/`. Сід уміє безпечно оновити каталог за версією (refresh, якщо немає профілів). Старі тонкі ND-файли вилучено. Тести `test_phase4`/`test_baselines` оновлено. |
 | (цей) | **Інкр.1, зріз «Profile + tailoring» (ревізія `0005`).** Моделі `Profile` (статус draft/approved/superseded, версіонування, lineage), `ProfileControl` (included/origin), `TailoringDecision` (**justification NOT NULL** + валідатор проти пробілів → 422), `ProfileParameterValue` (ODP), `Overlay`/`OverlayItem`. API (`app/api/profiles.py`): `POST /systems/{id}/profiles` (генерація з baseline), `GET /systems/{id}/profiles`, `GET /profiles/{id}`, `POST /profiles/{id}/tailoring` (add/remove/modify_param, лише draft інакше 409), `/approve`, `/new-version` (клон + superseded), `GET /profiles/{id}/resolved` (включені контролі + резолвлені ODP), overlays CRUD + `apply-overlay`. Фронт: сторінка «Цільові профілі» (майстер: генерація → tailoring з обґрунтуванням → затвердження → нова версія; вкладки Контролі/Резолвлене/Рішення). Тести `test_profiles.py` (8). |
 
 ### Ключові інваріанти, які треба тримати

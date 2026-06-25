@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from pathlib import Path
 
 from sqlalchemy import select
@@ -12,6 +13,7 @@ from app.models import (
     BaselineItem,
     BaselineLevel,
     Framework,
+    ProfileControl,
     Requirement,
     RiskCategory,
     Role,
@@ -22,7 +24,9 @@ from app.models import (
 ND_TZI_CATALOG_CODE = "nd-tzi-3-6-006-24"
 ND_TZI_BASELINES = [
     ("confidential", BaselineLevel.ND_CONFIDENTIAL, "НД ТЗІ — Конфіденційна інформація"),
-    ("service", BaselineLevel.ND_SERVICE, "НД ТЗІ — Службова інформація"),
+    ("service", BaselineLevel.ND_SERVICE, "НД ТЗІ — Службова інформація (ДСК)"),
+    ("registry", BaselineLevel.ND_REGISTRY,
+     "НД ТЗІ — Галузевий профіль публічних електронних реєстрів"),
 ]
 
 logger = logging.getLogger(__name__)
@@ -65,12 +69,77 @@ def seed_categories(db: Session) -> None:
     db.commit()
 
 
+def _family_of(code: str) -> str | None:
+    m = re.match(r"^([A-Za-z]{2})-", code or "")
+    return m.group(1).upper() if m else None
+
+
+def _parent_code(code: str) -> str:
+    """Базовий контроль для посилення: AC-2(1) → AC-2."""
+    return re.sub(r"\(\d+\)$", "", code or "")
+
+
+def _load_requirements(db: Session, framework: Framework, requirements: list[dict]) -> None:
+    """Створює вимоги каталогу та лінкує посилення на базові контролі (parent_id)."""
+    for req in requirements:
+        profiles = req.get("profiles") or []
+        db.add(
+            Requirement(
+                framework_id=framework.id,
+                code=req["code"],
+                title=req["title"],
+                description=req.get("description"),
+                family=_family_of(req["code"]),
+                profile_types=",".join(profiles) or None,
+                profile_descriptions=req.get("profile_descriptions"),
+            )
+        )
+    db.flush()
+    by_code = {
+        r.code: r.id
+        for r in db.scalars(
+            select(Requirement).where(Requirement.framework_id == framework.id)
+        )
+    }
+    for code, rid in by_code.items():
+        parent = _parent_code(code)
+        if parent != code and parent in by_code:
+            db.get(Requirement, rid).parent_id = by_code[parent]
+
+
+def _framework_in_use(db: Session, framework_id: int) -> bool:
+    """Чи є профілі ІКС, що посилаються на вимоги каталогу (видалення зруйнує дані)."""
+    return db.scalar(
+        select(ProfileControl.id)
+        .join(Requirement, ProfileControl.requirement_id == Requirement.id)
+        .where(Requirement.framework_id == framework_id)
+        .limit(1)
+    ) is not None
+
+
 def seed_frameworks(db: Session) -> None:
     data_dir = Path(__file__).parent / "seed_data"
     for path in sorted(data_dir.glob("*.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
-        if db.scalar(select(Framework.id).where(Framework.code == data["code"])):
-            continue
+        existing = db.scalar(select(Framework).where(Framework.code == data["code"]))
+        if existing:
+            # Каталог наявний: оновлюємо лише якщо змінилася версія сід-файлу
+            # і немає побудованих профілів (інакше можна зруйнувати дані користувача).
+            if existing.version == data.get("version"):
+                continue
+            if _framework_in_use(db, existing.id):
+                logger.warning(
+                    "Каталог %s має нову версію (%s→%s), але на ньому вже є профілі — "
+                    "оновіть вручну (видаліть старий каталог у UI)",
+                    data["code"], existing.version, data.get("version"),
+                )
+                continue
+            logger.info(
+                "Оновлення каталогу %s: %s → %s", data["code"], existing.version,
+                data.get("version"),
+            )
+            db.delete(existing)  # cascade: вимоги, baseline_items, baselines
+            db.flush()
         framework = Framework(
             code=data["code"],
             name=data["name"],
@@ -79,22 +148,7 @@ def seed_frameworks(db: Session) -> None:
         )
         db.add(framework)
         db.flush()
-        import re
-
-        for req in data["requirements"]:
-            profiles = req.get("profiles") or []
-            fam = re.match(r"^([A-Za-z]{2})-", req["code"])
-            db.add(
-                Requirement(
-                    framework_id=framework.id,
-                    code=req["code"],
-                    title=req["title"],
-                    description=req.get("description"),
-                    family=fam.group(1).upper() if fam else None,
-                    profile_types=",".join(profiles) or None,
-                    profile_descriptions=req.get("profile_descriptions"),
-                )
-            )
+        _load_requirements(db, framework, data["requirements"])
         db.commit()
         logger.info("Імпортовано каталог %s (%d вимог)", data["name"], len(data["requirements"]))
 

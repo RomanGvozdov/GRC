@@ -23,6 +23,7 @@ _IMPACT_RANK = {ImpactLevel.LOW: 0, ImpactLevel.MODERATE: 1, ImpactLevel.HIGH: 2
 _ND_PROFILE_TO_LEVEL = {
     ProfileType.CONFIDENTIAL: BaselineLevel.ND_CONFIDENTIAL,
     ProfileType.SERVICE: BaselineLevel.ND_SERVICE,
+    ProfileType.REGISTRY: BaselineLevel.ND_REGISTRY,
 }
 
 

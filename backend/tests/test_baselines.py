@@ -17,9 +17,11 @@ def test_seed_nd_tzi_baselines(client, admin_headers):
     by_level = {b["level"]: b for b in baselines}
     assert "nd_confidential" in by_level
     assert "nd_service" in by_level
-    # Профіль НД ТЗІ: 84 заходи для конфіденційної, 97 для службової
+    assert "nd_registry" in by_level
+    # Три профілі НД ТЗІ над повним каталогом: 84 / 97 / 119 заходів
     assert by_level["nd_confidential"]["item_count"] == 84
     assert by_level["nd_service"]["item_count"] == 97
+    assert by_level["nd_registry"]["item_count"] == 119
 
     detail = client.get(
         f"/api/baselines/{by_level['nd_confidential']['id']}", headers=admin_headers
@@ -103,6 +105,24 @@ def test_categorization_nd_profile_suggests_baseline(client, admin_headers):
         f"/api/baselines/{data['suggested_baseline_id']}", headers=admin_headers
     ).json()
     assert suggested["level"] == "nd_service"
+
+
+def test_categorization_registry_profile(client, admin_headers):
+    system = _create_system(client, admin_headers, "ІКС реєстр")
+    resp = client.put(
+        f"/api/systems/{system['id']}/categorization",
+        json={"nd_profile_type": "registry"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["profile_type"] == "registry"
+    assert data["suggested_baseline_id"] is not None
+    suggested = client.get(
+        f"/api/baselines/{data['suggested_baseline_id']}", headers=admin_headers
+    ).json()
+    assert suggested["level"] == "nd_registry"
+    assert suggested["item_count"] == 119
 
 
 def test_categorization_requires_input(client, admin_headers):

@@ -27,7 +27,8 @@ class BaselineLevel(str, enum.Enum):
     MODERATE = "moderate"  # NIST 800-53B Moderate
     HIGH = "high"  # NIST 800-53B High
     ND_CONFIDENTIAL = "nd_confidential"  # НД ТЗІ — конфіденційна інформація
-    ND_SERVICE = "nd_service"  # НД ТЗІ — службова інформація
+    ND_SERVICE = "nd_service"  # НД ТЗІ — службова інформація (ДСК)
+    ND_REGISTRY = "nd_registry"  # НД ТЗІ — галузевий профіль публічних е-реєстрів
     CUSTOM = "custom"  # довільний набір, складений вручну
 
 

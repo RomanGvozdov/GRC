@@ -27,7 +27,8 @@ class ProfileType(str, enum.Enum):
     """Тип базового профілю захищеності за НД ТЗІ 3.6-006-24."""
 
     CONFIDENTIAL = "confidential"  # конфіденційна інформація
-    SERVICE = "service"  # службова інформація
+    SERVICE = "service"  # службова інформація (ДСК)
+    REGISTRY = "registry"  # галузевий профіль публічних електронних реєстрів
 
 
 class SystemCriticality(str, enum.Enum):

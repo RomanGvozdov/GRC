@@ -119,7 +119,7 @@ export interface System extends SystemBrief {
   description: string | null;
   owner: UserBrief | null;
   criticality: "low" | "medium" | "high" | "critical" | null;
-  profile_type: "confidential" | "service" | null;
+  profile_type: "confidential" | "service" | "registry" | null;
   impact_confidentiality: ImpactLevel | null;
   impact_integrity: ImpactLevel | null;
   impact_availability: ImpactLevel | null;

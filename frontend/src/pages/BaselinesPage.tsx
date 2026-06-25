@@ -18,7 +18,8 @@ const LEVEL_LABELS: Record<string, string> = {
   moderate: "NIST Moderate",
   high: "NIST High",
   nd_confidential: "НД ТЗІ — Конфіденційна",
-  nd_service: "НД ТЗІ — Службова",
+  nd_service: "НД ТЗІ — Службова (ДСК)",
+  nd_registry: "НД ТЗІ — Реєстри",
   custom: "Власний",
 };
 
@@ -28,6 +29,7 @@ const LEVEL_COLORS: Record<string, string> = {
   high: "red",
   nd_confidential: "violet",
   nd_service: "indigo",
+  nd_registry: "teal",
   custom: "gray",
 };
 

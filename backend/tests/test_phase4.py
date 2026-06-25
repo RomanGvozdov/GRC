@@ -275,78 +275,24 @@ def test_base_profiles_nd_tzi(client, admin_headers):
 
 
 def test_nd_tzi_seed_catalog(client, admin_headers):
-    """Об'єднаний базовий профіль НД ТЗІ 3.6-006-24: 98 заходів, два профілі."""
+    """Повний каталог НД ТЗІ 3.6-006-24 (NIST 800-53 Rev 5): 1189 заходів, 20 класів,
+    ієрархія базовий→посилення, членство у трьох профілях."""
     frameworks = client.get("/api/frameworks", headers=admin_headers).json()
     nd = next((f for f in frameworks if f["code"] == "nd-tzi-3-6-006-24"), None)
     assert nd is not None, "Каталог НД ТЗІ не засіявся"
-    assert nd["is_custom"] is True  # редагований, щоб додавати посилені заходи
 
-    # Без контексту системи — усі 98 заходів
     reqs = client.get(
         f"/api/frameworks/{nd['id']}/requirements", headers=admin_headers
     ).json()
-    assert len(reqs) == 98
+    assert len(reqs) == 1189  # повний 800-53 Rev 5
     by_code = {r["code"]: r for r in reqs}
-    assert {"AC-2", "AU-3", "IR-8", "SC-13", "PL-2"} <= set(by_code)
-    # Захід лише для конфіденційної та лише для службової
-    assert by_code["AC-6(10)"]["profiles"] == ["confidential"]
-    assert by_code["SR-2"]["profiles"] == ["service"]
-    # AC-2 належить обом профілям
-    assert set(by_code["AC-2"]["profiles"]) == {"confidential", "service"}
-
-    # Системи з різними профілями
-    sys_conf = client.post(
-        "/api/systems",
-        json={"name": "АС конфіденційна НД ТЗІ", "profile_type": "confidential"},
-        headers=admin_headers,
-    ).json()
-    sys_serv = client.post(
-        "/api/systems",
-        json={"name": "АС службова НД ТЗІ", "profile_type": "service"},
-        headers=admin_headers,
-    ).json()
-
-    conf_reqs = client.get(
-        f"/api/frameworks/{nd['id']}/requirements?system_id={sys_conf['id']}",
-        headers=admin_headers,
-    ).json()
-    serv_reqs = client.get(
-        f"/api/frameworks/{nd['id']}/requirements?system_id={sys_serv['id']}",
-        headers=admin_headers,
-    ).json()
-    assert len(conf_reqs) == 84
-    assert len(serv_reqs) == 97
-
-    # AC-2 має РІЗНИЙ текст під профіль (службова — суворіша)
-    ac2_conf = next(r for r in conf_reqs if r["code"] == "AC-2")["description"]
-    ac2_serv = next(r for r in serv_reqs if r["code"] == "AC-2")["description"]
-    assert ac2_conf != ac2_serv
-    assert len(ac2_serv) > len(ac2_conf)
-
-    # Gap-аналіз поважає профіль системи
-    def gap_total(system_id):
-        return client.get(
-            f"/api/frameworks/{nd['id']}/gap-analysis?system_id={system_id}",
-            headers=admin_headers,
-        ).json()["total"]
-
-    assert gap_total(sys_conf["id"]) == 84
-    assert gap_total(sys_serv["id"]) == 97
-
-
-def test_nd_tzi_full_catalog_seed(client, admin_headers):
-    """Повний каталог заходів НД ТЗІ — усі заходи з усіх 20 класів."""
-    frameworks = client.get("/api/frameworks", headers=admin_headers).json()
-    full = next((f for f in frameworks if f["code"] == "nd-tzi-3-6-006-24-full"), None)
-    assert full is not None, "Повний каталог не засіявся"
-
-    reqs = client.get(
-        f"/api/frameworks/{full['id']}/requirements", headers=admin_headers
-    ).json()
-    assert len(reqs) > 300
-    codes = {r["code"] for r in reqs}
-    # заходи, яких немає в базових профілях, теж присутні
-    assert {"AC-16", "AC-21", "AU-10", "SR-7", "PM-1", "PT-1"} <= codes
+    # заходи поза базовими профілями теж присутні (повний каталог)
+    assert {"AC-16", "AC-21", "AU-10", "SR-7", "PM-1", "PT-1"} <= set(by_code)
     # 20 класів за префіксом коду
-    families = {c.split("-")[0] for c in codes}
-    assert len(families) == 20
+    assert len({c.split("-")[0].split("(")[0] for c in by_code}) == 20
+    # Ієрархія: посилення AC-2(1) посилається на базовий AC-2
+    assert by_code["AC-2(1)"]["parent_id"] == by_code["AC-2"]["id"]
+    # AC-2 належить і конфіденційному, і службовому профілю
+    assert {"confidential", "service"} <= set(by_code["AC-2"]["profiles"])
+    # Багатий текст: є рекомендації з реалізації
+    assert "Рекомендації з реалізації" in (by_code["AC-2"]["description"] or "")

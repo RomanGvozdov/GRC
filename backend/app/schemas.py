@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 
 from app.models import (
     ActionStatus,
@@ -8,6 +8,7 @@ from app.models import (
     ImplementationStatus,
     RiskStatus,
     Role,
+    TailoringAction,
     TreatmentStrategy,
     risk_level,
     risk_level_label,
@@ -293,6 +294,134 @@ class BaselineOut(ORMModel):
 
 class BaselineDetailOut(BaselineOut):
     items: list[RequirementBrief] = []
+
+
+# --- Profiles / tailoring (RMF, ТЗ §5) ---
+
+class ProfileGenerateIn(BaseModel):
+    baseline_id: int
+    name: str | None = Field(default=None, max_length=255)
+
+
+class ProfileControlOut(ORMModel):
+    id: int
+    requirement: RequirementBrief
+    included: bool
+    origin: str
+
+
+class TailoringDecisionOut(ORMModel):
+    id: int
+    action: str
+    requirement_id: int | None
+    parameter_id: int | None
+    value: str | None
+    justification: str
+    created_by: UserBrief | None
+    created_at: datetime
+
+
+class ProfileOut(ORMModel):
+    id: int
+    system_id: int
+    baseline_id: int | None
+    parent_profile_id: int | None
+    name: str
+    version: int
+    status: str
+    created_at: datetime
+    approved_at: datetime | None
+    control_count: int = 0  # включені контролі
+
+
+class ProfileDetailOut(ProfileOut):
+    controls: list[ProfileControlOut] = []
+    decisions: list[TailoringDecisionOut] = []
+
+
+class TailoringIn(BaseModel):
+    action: TailoringAction
+    requirement_id: int | None = None
+    parameter_id: int | None = None
+    value: str | None = None
+    justification: str = Field(min_length=1)  # обов'язкове обґрунтування
+
+    @field_validator("justification")
+    @classmethod
+    def _justification_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Обґрунтування обов'язкове")
+        return v.strip()
+
+
+class ResolvedParameterOut(BaseModel):
+    parameter_id: int
+    key: str
+    label: str | None = None
+    value: str | None = None  # значення профілю або default
+
+
+class ResolvedControlOut(BaseModel):
+    requirement_id: int
+    code: str
+    title: str
+    description: str | None = None
+    origin: str
+    parameters: list[ResolvedParameterOut] = []
+
+
+class ResolvedProfileOut(BaseModel):
+    profile_id: int
+    system_id: int
+    name: str
+    version: int
+    status: str
+    control_count: int
+    controls: list[ResolvedControlOut] = []
+
+
+# --- Overlays ---
+
+class OverlayItemIn(BaseModel):
+    requirement_id: int
+    action: str = Field(pattern="^(add|remove)$")
+
+
+class OverlayIn(BaseModel):
+    catalog_id: int
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    items: list[OverlayItemIn] = []
+
+
+class OverlayItemOut(ORMModel):
+    id: int
+    requirement_id: int
+    action: str
+
+
+class OverlayOut(ORMModel):
+    id: int
+    catalog_id: int
+    name: str
+    description: str | None
+    created_at: datetime
+    item_count: int = 0
+
+
+class OverlayDetailOut(OverlayOut):
+    items: list[OverlayItemOut] = []
+
+
+class ApplyOverlayIn(BaseModel):
+    justification: str = Field(min_length=1)
+
+    @field_validator("justification")
+    @classmethod
+    def _justification_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Обґрунтування обов'язкове")
+        return v.strip()
 
 
 class EvidenceOut(ORMModel):

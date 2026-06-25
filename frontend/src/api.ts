@@ -160,6 +160,74 @@ export interface Categorization {
   suggested_baseline_name: string | null;
 }
 
+// --- Профілі / tailoring (RMF, ТЗ §5) ---
+
+export type ProfileStatus = "draft" | "approved" | "superseded";
+export type ControlOrigin = "baseline" | "added";
+export type TailoringAction = "add" | "remove" | "modify_param";
+
+export interface ProfileControl {
+  id: number;
+  requirement: RequirementBrief;
+  included: boolean;
+  origin: ControlOrigin;
+}
+
+export interface TailoringDecision {
+  id: number;
+  action: TailoringAction;
+  requirement_id: number | null;
+  parameter_id: number | null;
+  value: string | null;
+  justification: string;
+  created_by: UserBrief | null;
+  created_at: string;
+}
+
+export interface Profile {
+  id: number;
+  system_id: number;
+  baseline_id: number | null;
+  parent_profile_id: number | null;
+  name: string;
+  version: number;
+  status: ProfileStatus;
+  created_at: string;
+  approved_at: string | null;
+  control_count: number;
+}
+
+export interface ProfileDetail extends Profile {
+  controls: ProfileControl[];
+  decisions: TailoringDecision[];
+}
+
+export interface ResolvedParameter {
+  parameter_id: number;
+  key: string;
+  label: string | null;
+  value: string | null;
+}
+
+export interface ResolvedControl {
+  requirement_id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  origin: ControlOrigin;
+  parameters: ResolvedParameter[];
+}
+
+export interface ResolvedProfile {
+  profile_id: number;
+  system_id: number;
+  name: string;
+  version: number;
+  status: ProfileStatus;
+  control_count: number;
+  controls: ResolvedControl[];
+}
+
 export interface ControlBrief {
   id: number;
   code: string;

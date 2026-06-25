@@ -42,6 +42,17 @@ from app.models.risks import (
 )
 from app.models.ai import AISuggestion
 from app.models.baselines import Baseline, BaselineItem, BaselineLevel
+from app.models.profiles import (
+    ControlOrigin,
+    Overlay,
+    OverlayItem,
+    Profile,
+    ProfileControl,
+    ProfileParameterValue,
+    ProfileStatus,
+    TailoringAction,
+    TailoringDecision,
+)
 from app.models.rbac import APIToken, CustomRole
 from app.models.systems import (
     ControlImplementation,
@@ -66,6 +77,15 @@ __all__ = [
     "BaselineItem",
     "BaselineLevel",
     "ImpactLevel",
+    "ControlOrigin",
+    "Overlay",
+    "OverlayItem",
+    "Profile",
+    "ProfileControl",
+    "ProfileParameterValue",
+    "ProfileStatus",
+    "TailoringAction",
+    "TailoringDecision",
     "CustomRole",
     "ApprovalDecision",
     "Audit",

@@ -7,10 +7,12 @@
 ## TL;DR для наступного чату
 
 - Працюємо в гілці **`claude/awesome-planck-76efci`**.
-- Тести: **50 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
-- Alembic head = **`0004`**. Наступна ревізія схеми має бути **`0005`**.
-- **→ НАСТУПНЕ:** Інкремент 1, зріз **«Profile + tailoring»** (ревізія `0005`).
-  Деталі — у розділі «Далі». Зріз Baseline + категоризація — зроблено.
+- Тести: **58 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
+- Alembic head = **`0005`**. Наступна ревізія схеми має бути **`0006`**.
+- **Інкремент 1 (RMF-конвеєр) — повністю зроблено** (Каталог 2.0 → Baseline+категоризація
+  → Profile+tailoring). Лишився **OSCAL-імпорт** — чекає офіційний файл від користувача.
+- **→ НАСТУПНЕ:** **Інкремент 2 — SSP + POA&M** (ревізія `0006`). Деталі — у розділі «Далі».
+  (OSCAL-імпорт можна зробити будь-коли, щойно користувач покладе файл у `docs/`.)
 
 ## Загальне
 
@@ -42,7 +44,8 @@
 | `e9edba2` | **AI-сценарій 1: семантичний Q&A §9.** `POST /api/ai/index` (адмін — індексація вимог/контролів/політик у `ai_document_chunks`), `POST /api/ai/ask` (RAG: embed→search→chat з **обов'язковими цитатами** `[тип#id]`, запис у `AISuggestion`), `GET /api/ai/suggestions` (журнал, адмін). Фронтенд: сторінка **«AI-пошук»** (роут `/ai-search`, пункт меню). Тести з моком провайдера/сховища (без мережі). |
 | `69e0905` | **Вбудований Ollama в docker-compose** (профіль `ai`). Локальний OpenAI-сумісний LLM; порт назовні не публікується (доступ лише з backend). Том `ollama`. README: інструкція підняття + `ollama pull`. Дефолти: `qwen2.5:7b` + `bge-m3` (embed_dim 1024). |
 | `318ee2a` | **UI «Скинути пароль» для адміна** на сторінці «Користувачі» (модалка → `PATCH /users/{id} {password}`, ≥12 символів). Усі сесії користувача анулюються (`token_version`). Тест `test_password_reset.py`. |
-| (цей) | **Інкр.1, зріз «Baseline + категоризація ІКС» (ревізія `0004`).** Моделі `Baseline`/`BaselineItem` (+`BaselineLevel`); `InformationSystem.impact_c/i/a` (+`ImpactLevel`). API: `GET/POST /baselines`, `GET /baselines/{id}`; `PUT /systems/{id}/categorization` (impacts→high-water-mark або профіль НД ТЗІ → `suggested_baseline_id`, human-in-the-loop). Сид: профілі НД ТЗІ (confidential 84 / service 97) → baselines. Фронт: сторінка «Базові набори» + блок категоризації на сторінці систем. Тести `test_baselines.py`. |
+| `e5ace39` | **Інкр.1, зріз «Baseline + категоризація ІКС» (ревізія `0004`).** Моделі `Baseline`/`BaselineItem` (+`BaselineLevel`); `InformationSystem.impact_c/i/a` (+`ImpactLevel`). API: `GET/POST /baselines`, `GET /baselines/{id}`; `PUT /systems/{id}/categorization` (impacts→high-water-mark або профіль НД ТЗІ → `suggested_baseline_id`, human-in-the-loop). Сид: профілі НД ТЗІ (confidential 84 / service 97) → baselines. Фронт: сторінка «Базові набори» + блок категоризації на сторінці систем. Тести `test_baselines.py`. |
+| (цей) | **Інкр.1, зріз «Profile + tailoring» (ревізія `0005`).** Моделі `Profile` (статус draft/approved/superseded, версіонування, lineage), `ProfileControl` (included/origin), `TailoringDecision` (**justification NOT NULL** + валідатор проти пробілів → 422), `ProfileParameterValue` (ODP), `Overlay`/`OverlayItem`. API (`app/api/profiles.py`): `POST /systems/{id}/profiles` (генерація з baseline), `GET /systems/{id}/profiles`, `GET /profiles/{id}`, `POST /profiles/{id}/tailoring` (add/remove/modify_param, лише draft інакше 409), `/approve`, `/new-version` (клон + superseded), `GET /profiles/{id}/resolved` (включені контролі + резолвлені ODP), overlays CRUD + `apply-overlay`. Фронт: сторінка «Цільові профілі» (майстер: генерація → tailoring з обґрунтуванням → затвердження → нова версія; вкладки Контролі/Резолвлене/Рішення). Тести `test_profiles.py` (8). |
 
 ### Ключові інваріанти, які треба тримати
 
@@ -80,21 +83,25 @@
 **Перевірити на проді:** `alembic upgrade head` (ревізія `0004` ідемпотентна) на наявному
 Postgres; сид сам створить НД ТЗІ-baselines, якщо їх ще немає.
 
-### → НАСТУПНЕ: Інкремент 1, зріз «Profile + tailoring» (ревізія `0005`)
-- `Profile`, `ProfileControl`, `TailoringDecision` (**`justification` NOT NULL** → без неї
-  422), `Overlay`/`OverlayItem`.
-- `POST /systems/{id}/profiles` (генерація з baseline → ProfileControl на кожен BaselineItem),
-  `POST /profiles/{id}/tailoring`, `/approve`, `/new-version`, `GET /profiles/{id}/resolved`.
-- UI «Профілі» (майстер: baseline → tailoring з обґрунтуванням → затвердження → версія).
-- Повні критерії §5.6.
+### Зроблено: Інкремент 1, зріз «Profile + tailoring» (ревізія `0005`)
+Реалізовано (див. рядок у таблиці «Зроблено»). Покриває критерії §5.6: генерація профілю
+з baseline, tailoring з обов'язковим обґрунтуванням, версіонування/затвердження,
+резолвлене подання, overlays. Фундамент для SSP (Інкремент 2): `GET /profiles/{id}/resolved`
+дає підсумковий набір контролів із резолвленими ODP-значеннями.
 
-### Інкремент 1, зріз «OSCAL-імпорт»
+**Перевірити на проді:** `alembic upgrade head` (ревізія `0005` ідемпотентна).
+
+### Інкремент 1, зріз «OSCAL-імпорт» (чекає файл користувача)
 - Імпорт OSCAL **catalog** 800-53 + **profile** 800-53B (low/moderate/high) як baselines.
 - Робимо, **коли користувач покладе офіційний OSCAL-файл** у `docs/` (поки — з наявного seed).
+- Бекенд готовий прийняти: `Framework.source="oscal"`, `Baseline` над каталогом → 800-53B
+  baselines стануть джерелом для `suggested_baseline_id` при NIST-категоризації.
 
-### Інкремент 2 — SSP + POA&M (ТЗ §6)
-`ControlImplementation.narrative`; `SSP`, `POAMItem`, `POAMMilestone`; експорт
-OSCAL/PDF/XLSX; `POA&M from-gaps`. Критерії §6.5.
+### → НАСТУПНЕ: Інкремент 2 — SSP + POA&M (ТЗ §6, ревізія `0006`)
+`ControlImplementation.narrative` (опис впровадження кожного контролю); `SSP` (план
+безпеки системи, прив'язаний до ІКС+профілю), `POAMItem`, `POAMMilestone`; експорт
+OSCAL/PDF/XLSX; `POA&M from-gaps` (генерація пунктів з непокритих контролів профілю/gap).
+Джерело контролів для SSP — `GET /profiles/{id}/resolved`. Критерії §6.5.
 
 ### Інкремент 3 — Оцінювання (800-53A) + ConMon + CIS/авто-докази (ТЗ §7)
 `Assessment`, `AssessmentResult`; `Evidence.source/expires_at/automated`;

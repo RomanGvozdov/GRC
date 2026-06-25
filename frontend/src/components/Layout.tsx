@@ -33,6 +33,7 @@ export default function Layout() {
   if (hasPermission(user, "admin", "manage")) {
     items.push({ to: "/systems", label: "Системи (ІКС)" });
     items.push({ to: "/baselines", label: "Базові набори" });
+    items.push({ to: "/profiles", label: "Цільові профілі" });
     items.push({ to: "/frameworks", label: "Каталоги" });
     items.push({ to: "/users", label: "Користувачі" });
     items.push({ to: "/roles", label: "Ролі" });

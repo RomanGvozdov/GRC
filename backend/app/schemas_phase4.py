@@ -2,7 +2,13 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from app.models import ImplementationStatus, ProfileType, SystemCriticality, SystemStatus
+from app.models import (
+    ImpactLevel,
+    ImplementationStatus,
+    ProfileType,
+    SystemCriticality,
+    SystemStatus,
+)
 from app.schemas import ORMModel, SystemBrief, UserBrief
 
 
@@ -22,8 +28,33 @@ class SystemOut(SystemBrief):
     owner: UserBrief | None
     criticality: SystemCriticality | None
     profile_type: ProfileType | None
+    impact_confidentiality: ImpactLevel | None = None
+    impact_integrity: ImpactLevel | None = None
+    impact_availability: ImpactLevel | None = None
     status: SystemStatus
     created_at: datetime
+
+
+# --- Категоризація ІКС (ТЗ §5) ---
+
+class CategorizationIn(BaseModel):
+    """Категоризація: або рівні впливу C/I/A (FIPS-199), або тип профілю НД ТЗІ."""
+
+    impact_confidentiality: ImpactLevel | None = None
+    impact_integrity: ImpactLevel | None = None
+    impact_availability: ImpactLevel | None = None
+    nd_profile_type: ProfileType | None = None
+
+
+class CategorizationOut(BaseModel):
+    system_id: int
+    impact_confidentiality: ImpactLevel | None = None
+    impact_integrity: ImpactLevel | None = None
+    impact_availability: ImpactLevel | None = None
+    profile_type: ProfileType | None = None
+    overall_impact: ImpactLevel | None = None  # high-water-mark з C/I/A
+    suggested_baseline_id: int | None = None
+    suggested_baseline_name: str | None = None
 
 
 # --- Впровадження контролів ---

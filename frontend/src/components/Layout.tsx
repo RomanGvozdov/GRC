@@ -32,6 +32,7 @@ export default function Layout() {
   ).map(({ to, label }) => ({ to, label }));
   if (hasPermission(user, "admin", "manage")) {
     items.push({ to: "/systems", label: "Системи (ІКС)" });
+    items.push({ to: "/baselines", label: "Базові набори" });
     items.push({ to: "/frameworks", label: "Каталоги" });
     items.push({ to: "/users", label: "Користувачі" });
     items.push({ to: "/roles", label: "Ролі" });

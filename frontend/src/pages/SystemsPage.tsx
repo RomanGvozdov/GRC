@@ -13,7 +13,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useState } from "react";
-import { api, errorText, type System, type User } from "../api";
+import { api, errorText, type Categorization, type System, type User } from "../api";
 import { EmptyRow, useFetch } from "../components/shared";
 import { LEVEL_COLORS, LEVEL_LABELS, PROFILE_LABELS } from "../labels";
 
@@ -22,6 +22,14 @@ const STATUS_LABELS: Record<string, string> = {
   development: "Розробляється",
   decommissioned: "Виведена з експлуатації",
 };
+
+const IMPACT_LABELS: Record<string, string> = {
+  low: "Низький",
+  moderate: "Помірний",
+  high: "Високий",
+};
+
+const IMPACT_OPTIONS = Object.entries(IMPACT_LABELS).map(([value, label]) => ({ value, label }));
 
 export default function SystemsPage() {
   const { data: systems, reload } = useFetch<System[]>("/systems");
@@ -37,6 +45,47 @@ export default function SystemsPage() {
   const [status, setStatus] = useState<string | null>("operational");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Категоризація
+  const [catSystem, setCatSystem] = useState<System | null>(null);
+  const [impactC, setImpactC] = useState<string | null>(null);
+  const [impactI, setImpactI] = useState<string | null>(null);
+  const [impactA, setImpactA] = useState<string | null>(null);
+  const [ndProfile, setNdProfile] = useState<string | null>(null);
+  const [catResult, setCatResult] = useState<Categorization | null>(null);
+
+  function openCategorize(system: System) {
+    setCatSystem(system);
+    setImpactC(system.impact_confidentiality);
+    setImpactI(system.impact_integrity);
+    setImpactA(system.impact_availability);
+    setNdProfile(system.profile_type);
+    setCatResult(null);
+    setError("");
+  }
+
+  async function saveCategorization() {
+    if (!catSystem) return;
+    setError("");
+    setBusy(true);
+    try {
+      const { data } = await api.put<Categorization>(
+        `/systems/${catSystem.id}/categorization`,
+        {
+          impact_confidentiality: impactC,
+          impact_integrity: impactI,
+          impact_availability: impactA,
+          nd_profile_type: ndProfile,
+        },
+      );
+      setCatResult(data);
+      reload();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function openCreate() {
     setEditing(null);
@@ -154,6 +203,13 @@ export default function SystemsPage() {
                     </Button>
                     <Button
                       size="compact-xs"
+                      variant="light"
+                      onClick={() => openCategorize(system)}
+                    >
+                      Категоризувати
+                    </Button>
+                    <Button
+                      size="compact-xs"
                       color="red"
                       variant="subtle"
                       onClick={() => void remove(system)}
@@ -219,6 +275,80 @@ export default function SystemsPage() {
           <Button onClick={() => void save()} disabled={!name} loading={busy}>
             Зберегти
           </Button>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={catSystem !== null}
+        onClose={() => setCatSystem(null)}
+        title={catSystem ? `Категоризація: ${catSystem.name}` : ""}
+      >
+        <Stack>
+          <Alert color="blue" variant="light">
+            Вкажіть рівні впливу (конфіденційність / цілісність / доступність) або тип
+            базового профілю НД ТЗІ. Система запропонує відповідний базовий набір — він
+            не застосовується автоматично.
+          </Alert>
+          <Group grow>
+            <Select
+              label="Конфіденційність"
+              data={IMPACT_OPTIONS}
+              value={impactC}
+              onChange={setImpactC}
+              clearable
+            />
+            <Select
+              label="Цілісність"
+              data={IMPACT_OPTIONS}
+              value={impactI}
+              onChange={setImpactI}
+              clearable
+            />
+            <Select
+              label="Доступність"
+              data={IMPACT_OPTIONS}
+              value={impactA}
+              onChange={setImpactA}
+              clearable
+            />
+          </Group>
+          <Select
+            label="Тип базового профілю (НД ТЗІ 3.6-006-24)"
+            data={Object.entries(PROFILE_LABELS).map(([value, label]) => ({ value, label }))}
+            value={ndProfile}
+            onChange={setNdProfile}
+            clearable
+          />
+          <Button
+            onClick={() => void saveCategorization()}
+            loading={busy}
+            disabled={!impactC && !impactI && !impactA && !ndProfile}
+          >
+            Зберегти категоризацію
+          </Button>
+          {catResult && (
+            <Alert color="green" variant="light">
+              <Stack gap={4}>
+                {catResult.overall_impact && (
+                  <span>
+                    Зведений рівень впливу:{" "}
+                    <strong>{IMPACT_LABELS[catResult.overall_impact]}</strong>
+                  </span>
+                )}
+                {catResult.suggested_baseline_id ? (
+                  <span>
+                    Запропонований базовий набір:{" "}
+                    <strong>{catResult.suggested_baseline_name}</strong>
+                  </span>
+                ) : (
+                  <span>
+                    Відповідного базового набору ще немає (NIST 800-53B baselines додаються
+                    при імпорті OSCAL).
+                  </span>
+                )}
+              </Stack>
+            </Alert>
+          )}
         </Stack>
       </Modal>
     </>

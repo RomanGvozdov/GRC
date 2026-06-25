@@ -6,11 +6,11 @@
 
 ## TL;DR для наступного чату
 
-- Працюємо в гілці **`claude/awesome-planck-76efci`**, останній коміт **`318ee2a`**.
-- Тести: **45 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
-- Alembic head = **`0003`**. Наступна ревізія схеми має бути **`0004`**.
-- **→ НАСТУПНЕ:** Інкремент 1, зріз **«Baseline + категоризація ІКС»** (ревізія `0004`).
-  Користувач уже сказав «Починай» — можна одразу реалізовувати (деталі нижче).
+- Працюємо в гілці **`claude/awesome-planck-76efci`**.
+- Тести: **50 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
+- Alembic head = **`0004`**. Наступна ревізія схеми має бути **`0005`**.
+- **→ НАСТУПНЕ:** Інкремент 1, зріз **«Profile + tailoring»** (ревізія `0005`).
+  Деталі — у розділі «Далі». Зріз Baseline + категоризація — зроблено.
 
 ## Загальне
 
@@ -42,6 +42,7 @@
 | `e9edba2` | **AI-сценарій 1: семантичний Q&A §9.** `POST /api/ai/index` (адмін — індексація вимог/контролів/політик у `ai_document_chunks`), `POST /api/ai/ask` (RAG: embed→search→chat з **обов'язковими цитатами** `[тип#id]`, запис у `AISuggestion`), `GET /api/ai/suggestions` (журнал, адмін). Фронтенд: сторінка **«AI-пошук»** (роут `/ai-search`, пункт меню). Тести з моком провайдера/сховища (без мережі). |
 | `69e0905` | **Вбудований Ollama в docker-compose** (профіль `ai`). Локальний OpenAI-сумісний LLM; порт назовні не публікується (доступ лише з backend). Том `ollama`. README: інструкція підняття + `ollama pull`. Дефолти: `qwen2.5:7b` + `bge-m3` (embed_dim 1024). |
 | `318ee2a` | **UI «Скинути пароль» для адміна** на сторінці «Користувачі» (модалка → `PATCH /users/{id} {password}`, ≥12 символів). Усі сесії користувача анулюються (`token_version`). Тест `test_password_reset.py`. |
+| (цей) | **Інкр.1, зріз «Baseline + категоризація ІКС» (ревізія `0004`).** Моделі `Baseline`/`BaselineItem` (+`BaselineLevel`); `InformationSystem.impact_c/i/a` (+`ImpactLevel`). API: `GET/POST /baselines`, `GET /baselines/{id}`; `PUT /systems/{id}/categorization` (impacts→high-water-mark або профіль НД ТЗІ → `suggested_baseline_id`, human-in-the-loop). Сид: профілі НД ТЗІ (confidential 84 / service 97) → baselines. Фронт: сторінка «Базові набори» + блок категоризації на сторінці систем. Тести `test_baselines.py`. |
 
 ### Ключові інваріанти, які треба тримати
 
@@ -63,43 +64,23 @@
 
 ## Далі (черга робіт)
 
-### → НАСТУПНЕ: Інкремент 1, зріз «Baseline + категоризація ІКС» (ревізія `0004`)
+### Зроблено: Інкремент 1, зріз «Baseline + категоризація ІКС» (ревізія `0004`)
 
-Користувач підтвердив старт цього зрізу («Починай»). Що робити:
+Реалізовано (див. рядок у таблиці «Зроблено»). Що отримали як фундамент для зрізу C:
+- `Baseline`/`BaselineItem` над каталогом; `BaselineLevel`
+  (`low/moderate/high/nd_confidential/nd_service/custom`).
+- `InformationSystem.impact_c/i/a` (`ImpactLevel` `low/moderate/high`).
+- `GET/POST /api/baselines`, `GET /api/baselines/{id}`;
+  `PUT /api/systems/{id}/categorization` → `suggested_baseline_id` (high-water-mark /
+  профіль НД ТЗІ), категоризація зберігається в ІКС.
+- Сид: `seed_baselines()` робить з профілів НД ТЗІ два baselines (confidential 84 заходи,
+  service 97). NIST 800-53B baselines з'являться при OSCAL-імпорті.
+- Фронт: сторінка «Базові набори», блок «Категоризувати» на сторінці систем.
 
-**Дані (нова Alembic-ревізія `0004`, `down_revision="0003"`, ідемпотентна):**
-- `Baseline` (`id`, `catalog_id`→Framework, `name`, `level` enum
-  `low/moderate/high/nd_confidential/nd_service/custom`, `description`, `created_at`).
-- `BaselineItem` (`id`, `baseline_id`, `requirement_id`, unique `(baseline_id, requirement_id)`).
-- `InformationSystem`: додати `impact_confidentiality`, `impact_integrity`,
-  `impact_availability` — enum `low/moderate/high` (nullable, поки не категоризовано).
-- Postgres-only FK — під `if dialect == postgresql` (як у `0002`).
+**Перевірити на проді:** `alembic upgrade head` (ревізія `0004` ідемпотентна) на наявному
+Postgres; сид сам створить НД ТЗІ-baselines, якщо їх ще немає.
 
-**API:**
-- `GET /api/baselines`, `POST /api/baselines`, `GET /api/baselines/{id}` (зі складом items).
-- `PUT /api/systems/{id}/categorization` — приймає або `{impact_c, impact_i, impact_a}`
-  (FIPS-199-стиль), або `{nd_profile_type: confidential|service}`. У відповіді —
-  `suggested_baseline_id` (high-water-mark для NIST: max з трьох impact; для НД ТЗІ —
-  відповідний профіль). **Не застосовувати автоматично** — лише пропозиція (human-in-the-loop).
-
-**Логіка/сид:**
-- Наявні профілі НД ТЗІ (confidential/service) перетворити на `Baseline` над каталогом
-  НД ТЗІ: для кожного профілю — `BaselineItem` на кожну вимогу профілю.
-- (Коли буде OSCAL 800-53B — додати low/moderate/high baselines над каталогом 800-53.)
-
-**UI:**
-- Блок «Категоризація» на сторінці систем (ІКС): вибір impact C/I/A або типу НД ТЗІ →
-  показ запропонованого baseline; кнопка зберегти категоризацію.
-- Перегляд списку baselines та їх складу.
-
-**Критерії приймання (ТЗ §5.6, частково):** категоризація пропонує baseline; склад
-baseline = набір вимог. (Генерація профілю з baseline → `ProfileControl` на кожен
-`BaselineItem` — уже в наступному зрізі C.)
-
-**Тести (SQLite):** створення baseline + items; категоризація NIST (impact→suggested);
-категоризація НД ТЗІ (profile_type→suggested); повторний сид НД ТЗІ-baselines не дублює.
-
-### Інкремент 1, зріз «Profile + tailoring» (ревізія `0005`)
+### → НАСТУПНЕ: Інкремент 1, зріз «Profile + tailoring» (ревізія `0005`)
 - `Profile`, `ProfileControl`, `TailoringDecision` (**`justification` NOT NULL** → без неї
   422), `Overlay`/`OverlayItem`.
 - `POST /systems/{id}/profiles` (генерація з baseline → ProfileControl на кожен BaselineItem),

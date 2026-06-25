@@ -7,7 +7,23 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core.security import hash_password
-from app.models import Framework, Requirement, RiskCategory, Role, User
+from app.models import (
+    Baseline,
+    BaselineItem,
+    BaselineLevel,
+    Framework,
+    Requirement,
+    RiskCategory,
+    Role,
+    User,
+)
+
+# Каталог НД ТЗІ з базовими профілями → відповідні baselines.
+ND_TZI_CATALOG_CODE = "nd-tzi-3-6-006-24"
+ND_TZI_BASELINES = [
+    ("confidential", BaselineLevel.ND_CONFIDENTIAL, "НД ТЗІ — Конфіденційна інформація"),
+    ("service", BaselineLevel.ND_SERVICE, "НД ТЗІ — Службова інформація"),
+]
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +99,47 @@ def seed_frameworks(db: Session) -> None:
         logger.info("Імпортовано каталог %s (%d вимог)", data["name"], len(data["requirements"]))
 
 
+def seed_baselines(db: Session) -> None:
+    """Перетворює базові профілі НД ТЗІ (за `Requirement.profile_types`) на baselines.
+
+    Ідемпотентно: пропускає baseline, який уже існує для цього каталогу й рівня.
+    """
+    catalog = db.scalar(select(Framework).where(Framework.code == ND_TZI_CATALOG_CODE))
+    if catalog is None:
+        return
+    requirements = db.scalars(
+        select(Requirement).where(Requirement.framework_id == catalog.id)
+    ).all()
+    for profile, level, name in ND_TZI_BASELINES:
+        exists = db.scalar(
+            select(Baseline.id).where(
+                Baseline.catalog_id == catalog.id, Baseline.level == level.value
+            )
+        )
+        if exists:
+            continue
+        matching = [
+            r for r in requirements
+            if profile in (r.profile_types or "").split(",")
+        ]
+        if not matching:
+            continue
+        baseline = Baseline(
+            catalog_id=catalog.id,
+            name=name,
+            level=level.value,
+            description=f"Базовий профіль НД ТЗІ 3.6-006-24 ({name}).",
+        )
+        db.add(baseline)
+        db.flush()
+        for r in matching:
+            db.add(BaselineItem(baseline_id=baseline.id, requirement_id=r.id))
+        db.commit()
+        logger.info("Створено baseline %s (%d заходів)", name, len(matching))
+
+
 def run_seed(db: Session) -> None:
     seed_admin(db)
     seed_categories(db)
     seed_frameworks(db)
+    seed_baselines(db)

@@ -113,13 +113,51 @@ export interface SystemBrief {
   name: string;
 }
 
+export type ImpactLevel = "low" | "moderate" | "high";
+
 export interface System extends SystemBrief {
   description: string | null;
   owner: UserBrief | null;
   criticality: "low" | "medium" | "high" | "critical" | null;
   profile_type: "confidential" | "service" | null;
+  impact_confidentiality: ImpactLevel | null;
+  impact_integrity: ImpactLevel | null;
+  impact_availability: ImpactLevel | null;
   status: "operational" | "development" | "decommissioned";
   created_at: string;
+}
+
+export type BaselineLevel =
+  | "low"
+  | "moderate"
+  | "high"
+  | "nd_confidential"
+  | "nd_service"
+  | "custom";
+
+export interface Baseline {
+  id: number;
+  catalog_id: number;
+  name: string;
+  level: BaselineLevel;
+  description: string | null;
+  created_at: string;
+  item_count: number;
+}
+
+export interface BaselineDetail extends Baseline {
+  items: RequirementBrief[];
+}
+
+export interface Categorization {
+  system_id: number;
+  impact_confidentiality: ImpactLevel | null;
+  impact_integrity: ImpactLevel | null;
+  impact_availability: ImpactLevel | null;
+  profile_type: "confidential" | "service" | null;
+  overall_impact: ImpactLevel | null;
+  suggested_baseline_id: number | null;
+  suggested_baseline_name: string | null;
 }
 
 export interface ControlBrief {

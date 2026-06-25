@@ -41,9 +41,11 @@ from app.models.risks import (
     risk_level_label,
 )
 from app.models.ai import AISuggestion
+from app.models.baselines import Baseline, BaselineItem, BaselineLevel
 from app.models.rbac import APIToken, CustomRole
 from app.models.systems import (
     ControlImplementation,
+    ImpactLevel,
     ProfileType,
     InformationSystem,
     SystemCriticality,
@@ -60,6 +62,10 @@ __all__ = [
     "AISuggestion",
     "APIToken",
     "ActionStatus",
+    "Baseline",
+    "BaselineItem",
+    "BaselineLevel",
+    "ImpactLevel",
     "CustomRole",
     "ApprovalDecision",
     "Audit",

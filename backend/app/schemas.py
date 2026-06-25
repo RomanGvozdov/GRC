@@ -271,6 +271,30 @@ class RequirementBrief(ORMModel):
     framework_id: int
 
 
+# --- Baselines (RMF, ТЗ §5) ---
+
+class BaselineIn(BaseModel):
+    catalog_id: int
+    name: str = Field(min_length=1, max_length=255)
+    level: str = "custom"
+    description: str | None = None
+    requirement_ids: list[int] = []
+
+
+class BaselineOut(ORMModel):
+    id: int
+    catalog_id: int
+    name: str
+    level: str
+    description: str | None
+    created_at: datetime
+    item_count: int = 0
+
+
+class BaselineDetailOut(BaselineOut):
+    items: list[RequirementBrief] = []
+
+
 class EvidenceOut(ORMModel):
     id: int
     kind: str

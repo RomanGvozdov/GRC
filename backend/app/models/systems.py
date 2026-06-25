@@ -37,6 +37,14 @@ class SystemCriticality(str, enum.Enum):
     CRITICAL = "critical"
 
 
+class ImpactLevel(str, enum.Enum):
+    """Рівень впливу за категоризацією (FIPS-199-стиль): для C, I, A окремо."""
+
+    LOW = "low"
+    MODERATE = "moderate"
+    HIGH = "high"
+
+
 risk_systems = Table(
     "risk_systems",
     Base.metadata,
@@ -71,6 +79,10 @@ class InformationSystem(Base):
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     criticality: Mapped[str | None] = mapped_column(String(16))
     profile_type: Mapped[str | None] = mapped_column(String(16))  # ProfileType
+    # Категоризація впливу (FIPS-199-стиль): рівень для конфіденційності/цілісності/доступності
+    impact_confidentiality: Mapped[str | None] = mapped_column(String(16))  # ImpactLevel
+    impact_integrity: Mapped[str | None] = mapped_column(String(16))
+    impact_availability: Mapped[str | None] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(32), default=SystemStatus.OPERATIONAL.value)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 

@@ -4,11 +4,26 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.deps import get_current_user, require_admin
 from app.database import get_db
-from app.models import ControlImplementation, InformationSystem, User
-from app.schemas_phase4 import SystemIn, SystemOut
+from app.models import (
+    Baseline,
+    BaselineLevel,
+    ControlImplementation,
+    ImpactLevel,
+    InformationSystem,
+    ProfileType,
+    User,
+)
+from app.schemas_phase4 import CategorizationIn, CategorizationOut, SystemIn, SystemOut
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/systems", tags=["systems"])
+
+_IMPACT_RANK = {ImpactLevel.LOW: 0, ImpactLevel.MODERATE: 1, ImpactLevel.HIGH: 2}
+# Тип профілю НД ТЗІ → рівень baseline
+_ND_PROFILE_TO_LEVEL = {
+    ProfileType.CONFIDENTIAL: BaselineLevel.ND_CONFIDENTIAL,
+    ProfileType.SERVICE: BaselineLevel.ND_SERVICE,
+}
 
 
 def _next_code(db: Session) -> str:
@@ -68,6 +83,76 @@ def update_system(
     log_action(db, actor, "update", "system", system.id, {"code": system.code})
     db.commit()
     return system
+
+
+@router.put("/{system_id}/categorization", response_model=CategorizationOut)
+def categorize_system(
+    system_id: int,
+    body: CategorizationIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+):
+    """Категоризація ІКС: рівні впливу C/I/A (FIPS-199) або тип профілю НД ТЗІ.
+
+    Повертає запропонований baseline (human-in-the-loop — не застосовується
+    автоматично; генерація профілю з нього — окремий крок)."""
+    system = db.get(InformationSystem, system_id)
+    if system is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Систему не знайдено")
+
+    impacts = [body.impact_confidentiality, body.impact_integrity, body.impact_availability]
+    has_impacts = any(i is not None for i in impacts)
+    if not has_impacts and body.nd_profile_type is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Вкажіть рівні впливу C/I/A або тип профілю НД ТЗІ",
+        )
+
+    suggested_level: str | None = None
+    overall: ImpactLevel | None = None
+
+    if has_impacts:
+        system.impact_confidentiality = (
+            body.impact_confidentiality.value if body.impact_confidentiality else None
+        )
+        system.impact_integrity = (
+            body.impact_integrity.value if body.impact_integrity else None
+        )
+        system.impact_availability = (
+            body.impact_availability.value if body.impact_availability else None
+        )
+        present = [i for i in impacts if i is not None]
+        overall = max(present, key=lambda i: _IMPACT_RANK[i])  # high-water-mark
+        suggested_level = overall.value
+
+    if body.nd_profile_type is not None:
+        system.profile_type = body.nd_profile_type.value
+        suggested_level = _ND_PROFILE_TO_LEVEL[body.nd_profile_type].value
+
+    suggested = (
+        db.scalar(select(Baseline).where(Baseline.level == suggested_level).order_by(Baseline.id))
+        if suggested_level
+        else None
+    )
+
+    log_action(
+        db, actor, "categorize", "system", system.id,
+        {"overall_impact": overall.value if overall else None,
+         "profile_type": system.profile_type,
+         "suggested_baseline_id": suggested.id if suggested else None},
+    )
+    db.commit()
+
+    return CategorizationOut(
+        system_id=system.id,
+        impact_confidentiality=system.impact_confidentiality,
+        impact_integrity=system.impact_integrity,
+        impact_availability=system.impact_availability,
+        profile_type=system.profile_type,
+        overall_impact=overall,
+        suggested_baseline_id=suggested.id if suggested else None,
+        suggested_baseline_name=suggested.name if suggested else None,
+    )
 
 
 @router.delete("/{system_id}", status_code=status.HTTP_204_NO_CONTENT)

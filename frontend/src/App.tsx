@@ -22,6 +22,7 @@ import SystemsPage from "./pages/SystemsPage";
 import BaselinesPage from "./pages/BaselinesPage";
 import ProfilesPage from "./pages/ProfilesPage";
 import SSPPage from "./pages/SSPPage";
+import PoamPage from "./pages/PoamPage";
 import RiskDetailPage from "./pages/RiskDetailPage";
 import RisksPage from "./pages/RisksPage";
 import UsersPage from "./pages/UsersPage";
@@ -66,6 +67,7 @@ export default function App() {
         {user.role === "admin" && <Route path="/baselines" element={<BaselinesPage />} />}
         {user.role === "admin" && <Route path="/profiles" element={<ProfilesPage />} />}
         {user.role === "admin" && <Route path="/ssp" element={<SSPPage />} />}
+        {user.role === "admin" && <Route path="/poam" element={<PoamPage />} />}
         {user.role === "admin" && <Route path="/frameworks" element={<FrameworksPage />} />}
         {user.role === "admin" && <Route path="/users" element={<UsersPage />} />}
         {user.role === "admin" && <Route path="/roles" element={<RolesPage />} />}

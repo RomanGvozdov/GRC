@@ -259,6 +259,46 @@ export interface SSPDetail extends SSP {
   controls: SSPControl[];
 }
 
+// --- POA&M (план дій та контрольних точок, ТЗ §6) ---
+
+export type POAMStatus = "open" | "in_progress" | "completed" | "risk_accepted";
+export type Severity4 = "low" | "medium" | "high" | "critical";
+
+export interface POAMMilestone {
+  id: number;
+  title: string;
+  due_date: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface POAMItem {
+  id: number;
+  system_id: number;
+  requirement: RequirementBrief | null;
+  title: string;
+  weakness: string | null;
+  status: POAMStatus;
+  severity: Severity4 | null;
+  source: "manual" | "from_gap" | "from_finding";
+  responsible: UserBrief | null;
+  due_date: string | null;
+  created_at: string;
+  milestone_count: number;
+  milestone_done: number;
+}
+
+export interface POAMItemDetail extends POAMItem {
+  milestones: POAMMilestone[];
+}
+
+export interface POAMFromProfile {
+  created: number;
+  skipped: number;
+  items: POAMItem[];
+}
+
 export interface ControlBrief {
   id: number;
   code: string;

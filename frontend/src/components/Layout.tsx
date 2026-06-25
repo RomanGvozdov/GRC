@@ -35,6 +35,7 @@ export default function Layout() {
     items.push({ to: "/baselines", label: "Базові набори" });
     items.push({ to: "/profiles", label: "Цільові профілі" });
     items.push({ to: "/ssp", label: "SSP (план безпеки)" });
+    items.push({ to: "/poam", label: "POA&M" });
     items.push({ to: "/frameworks", label: "Каталоги" });
     items.push({ to: "/users", label: "Користувачі" });
     items.push({ to: "/roles", label: "Ролі" });

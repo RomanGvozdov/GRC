@@ -7,8 +7,10 @@
 ## TL;DR для наступного чату
 
 - Працюємо в гілці **`claude/awesome-planck-76efci`**.
-- Тести: **58 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
-- Alembic head = **`0005`**. Наступна ревізія схеми має бути **`0006`**.
+- Тести: **66 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
+- Alembic head = **`0007`**. Наступна ревізія схеми має бути **`0008`**.
+- **Інкремент 2 (SSP + POA&M) — зроблено.** Наступне — Інкремент 3 (оцінювання
+  800-53A + ConMon + авто-докази).
 - **Каталог НД ТЗІ — це тепер повний 800-53 Rev 5 (1189 заходів, багатий текст)** з трьома
   профілями (конфіденц./ДСК/реєстри). На розгорнутому сервері старий тонкий каталог
   оновиться автоматично при рестарті (refresh за версією); орфанний `nd-tzi-3-6-006-24-full`
@@ -50,6 +52,8 @@
 | `318ee2a` | **UI «Скинути пароль» для адміна** на сторінці «Користувачі» (модалка → `PATCH /users/{id} {password}`, ≥12 символів). Усі сесії користувача анулюються (`token_version`). Тест `test_password_reset.py`. |
 | `e5ace39` | **Інкр.1, зріз «Baseline + категоризація ІКС» (ревізія `0004`).** Моделі `Baseline`/`BaselineItem` (+`BaselineLevel`); `InformationSystem.impact_c/i/a` (+`ImpactLevel`). API: `GET/POST /baselines`, `GET /baselines/{id}`; `PUT /systems/{id}/categorization` (impacts→high-water-mark або профіль НД ТЗІ → `suggested_baseline_id`, human-in-the-loop). Сид: профілі НД ТЗІ (confidential 84 / service 97) → baselines. Фронт: сторінка «Базові набори» + блок категоризації на сторінці систем. Тести `test_baselines.py`. |
 | (цей) | **Багатий каталог НД ТЗІ (повний 800-53 Rev 5) + 3 профілі.** З Excel/Word користувача згенеровано єдиний каталог `nd-tzi-3-6-006-24` — **1189 заходів** (текст + рекомендації), ієрархія базовий→посилення (`parent_id`), 20 родин. Три baselines: конфіденц. (84), ДСК/службова (97), **галузевий реєстровий (119)**. Додано `ProfileType.REGISTRY` + `BaselineLevel.ND_REGISTRY` (String-колонки → без міграції). Конвертер `backend/scripts/build_catalogs.py`; джерела в `docs/nd-tzi/`. Сід уміє безпечно оновити каталог за версією (refresh, якщо немає профілів). Старі тонкі ND-файли вилучено. Тести `test_phase4`/`test_baselines` оновлено. |
+| `c6103e2` | **Інкр.2A «SSP» (ревізія `0006`).** Моделі `SSP` (версіонування, lineage, draft/approved/superseded) + `SSPControl` (наратив, статус, відповідальний); `ControlImplementation.narrative`. API `app/api/ssp.py`: генерація з резолвленого профілю, редагування наративів (draft-only), approve, new-version, експорт **OSCAL** (system-security-plan) + XLSX. `app/services/oscal.py` (білдер OSCAL 1.1.2). Фронт: сторінка «SSP». Тести `test_ssp.py` (5). |
+| (цей) | **Інкр.2B «POA&M» (ревізія `0007`).** Моделі `POAMItem` (статус/критичність/джерело/відповідальний/термін) + `POAMMilestone`. API `app/api/poam.py`: CRUD пунктів, контрольні точки, **генерація з прогалин профілю** (`from-profile/{id}` — непокриті/частково покриті контролі, дедуплікація), експорт OSCAL (plan-of-action-and-milestones) + XLSX. Фронт: сторінка «POA&M». Тести `test_poam.py` (3). |
 | (цей) | **Інкр.1, зріз «Profile + tailoring» (ревізія `0005`).** Моделі `Profile` (статус draft/approved/superseded, версіонування, lineage), `ProfileControl` (included/origin), `TailoringDecision` (**justification NOT NULL** + валідатор проти пробілів → 422), `ProfileParameterValue` (ODP), `Overlay`/`OverlayItem`. API (`app/api/profiles.py`): `POST /systems/{id}/profiles` (генерація з baseline), `GET /systems/{id}/profiles`, `GET /profiles/{id}`, `POST /profiles/{id}/tailoring` (add/remove/modify_param, лише draft інакше 409), `/approve`, `/new-version` (клон + superseded), `GET /profiles/{id}/resolved` (включені контролі + резолвлені ODP), overlays CRUD + `apply-overlay`. Фронт: сторінка «Цільові профілі» (майстер: генерація → tailoring з обґрунтуванням → затвердження → нова версія; вкладки Контролі/Резолвлене/Рішення). Тести `test_profiles.py` (8). |
 
 ### Ключові інваріанти, які треба тримати
@@ -102,15 +106,17 @@ Postgres; сид сам створить НД ТЗІ-baselines, якщо їх щ
 - Бекенд готовий прийняти: `Framework.source="oscal"`, `Baseline` над каталогом → 800-53B
   baselines стануть джерелом для `suggested_baseline_id` при NIST-категоризації.
 
-### → НАСТУПНЕ: Інкремент 2 — SSP + POA&M (ТЗ §6, ревізія `0006`)
-`ControlImplementation.narrative` (опис впровадження кожного контролю); `SSP` (план
-безпеки системи, прив'язаний до ІКС+профілю), `POAMItem`, `POAMMilestone`; експорт
-OSCAL/PDF/XLSX; `POA&M from-gaps` (генерація пунктів з непокритих контролів профілю/gap).
-Джерело контролів для SSP — `GET /profiles/{id}/resolved`. Критерії §6.5.
+### Зроблено: Інкремент 2 — SSP + POA&M (ревізії `0006`, `0007`)
+Реалізовано (рядки в таблиці «Зроблено»). SSP генерується з резолвленого профілю,
+POA&M — вручну або з прогалин профілю; обидва експортуються в OSCAL+XLSX. PDF-експорт
+SSP/POA&M поки не робив (XLSX+OSCAL покривають потребу; PDF — за потреби, інфра WeasyPrint
+є у `reports.py`).
 
-### Інкремент 3 — Оцінювання (800-53A) + ConMon + CIS/авто-докази (ТЗ §7)
-`Assessment`, `AssessmentResult`; `Evidence.source/expires_at/automated`;
-дрейф + дашборд здоров'я; `POST /api/ingest/evidence` за API-токеном.
+### → НАСТУПНЕ: Інкремент 3 — Оцінювання (800-53A) + ConMon + авто-докази (ТЗ §7, ревізія `0008`)
+`Assessment` (оцінювання профілю/SSP), `AssessmentResult` (satisfied/other-than-satisfied
+на контроль); `Evidence.source/expires_at/automated`; дрейф (протерміновані докази) +
+дашборд здоров'я; `POST /api/ingest/evidence` за API-токеном (авто-докази зі сканерів/CIS).
+Джерело контролів для оцінювання — резолвлений профіль / SSP. Критерії §7.
 
 ### Інкремент 4 — Авторозрахунок ризику + повний OSCAL + EN-локалізація (ТЗ §8)
 Зв'язок ризик↔контролі для авторозрахунку; повний OSCAL на всіх межах;

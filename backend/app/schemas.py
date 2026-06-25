@@ -465,6 +465,75 @@ class SSPDetailOut(SSPOut):
     controls: list[SSPControlOut] = []
 
 
+# --- POA&M (план дій та контрольних точок, ТЗ §6) ---
+
+_SEVERITY = "^(low|medium|high|critical)$"
+
+
+class POAMMilestoneIn(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    due_date: date | None = None
+
+
+class POAMMilestoneUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=500)
+    due_date: date | None = None
+    completed: bool | None = None
+
+
+class POAMMilestoneOut(ORMModel):
+    id: int
+    title: str
+    due_date: date | None
+    completed: bool
+    completed_at: datetime | None
+    created_at: datetime
+
+
+class POAMItemIn(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    weakness: str | None = None
+    requirement_id: int | None = None
+    severity: str | None = Field(default=None, pattern=_SEVERITY)
+    responsible_id: int | None = None
+    due_date: date | None = None
+
+
+class POAMItemUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=500)
+    weakness: str | None = None
+    status: str | None = Field(default=None, pattern="^(open|in_progress|completed|risk_accepted)$")
+    severity: str | None = Field(default=None, pattern=_SEVERITY)
+    responsible_id: int | None = None
+    due_date: date | None = None
+
+
+class POAMItemOut(ORMModel):
+    id: int
+    system_id: int
+    requirement: RequirementBrief | None
+    title: str
+    weakness: str | None
+    status: str
+    severity: str | None
+    source: str
+    responsible: UserBrief | None
+    due_date: date | None
+    created_at: datetime
+    milestone_count: int = 0
+    milestone_done: int = 0
+
+
+class POAMItemDetailOut(POAMItemOut):
+    milestones: list[POAMMilestoneOut] = []
+
+
+class POAMFromProfileOut(BaseModel):
+    created: int
+    skipped: int
+    items: list[POAMItemOut] = []
+
+
 class EvidenceOut(ORMModel):
     id: int
     kind: str

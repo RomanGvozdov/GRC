@@ -53,6 +53,7 @@ from app.models.profiles import (
     TailoringAction,
     TailoringDecision,
 )
+from app.models.poam import POAMItem, POAMMilestone, POAMSource, POAMStatus
 from app.models.rbac import APIToken, CustomRole
 from app.models.ssp import SSP, SSPControl, SSPStatus
 from app.models.systems import (
@@ -90,6 +91,10 @@ __all__ = [
     "SSP",
     "SSPControl",
     "SSPStatus",
+    "POAMItem",
+    "POAMMilestone",
+    "POAMSource",
+    "POAMStatus",
     "CustomRole",
     "ApprovalDecision",
     "Audit",

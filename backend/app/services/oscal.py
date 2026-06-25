@@ -70,3 +70,38 @@ def build_ssp_oscal(ssp, system, controls) -> dict:
             },
         }
     }
+
+
+def build_poam_oscal(system, items) -> dict:
+    """items — список POAMItem з підвантаженими .milestones."""
+    poam_items = []
+    for it in items:
+        props = [{"name": "status", "value": it.status}]
+        if it.severity:
+            props.append({"name": "severity", "value": it.severity})
+        if it.requirement:
+            props.append({"name": "control-id", "value": control_id(it.requirement.code)})
+        poam_items.append({
+            "uuid": str(uuid.uuid4()),
+            "title": it.title,
+            "description": it.weakness or it.title,
+            "props": props,
+            "remarks": "; ".join(
+                f"{m.title}{' (виконано)' if m.completed else ''}" for m in it.milestones
+            ) or None,
+        })
+
+    return {
+        "plan-of-action-and-milestones": {
+            "uuid": str(uuid.uuid4()),
+            "metadata": {
+                "title": f"POA&M — {system.name}",
+                "last-modified": _now(),
+                "version": _now()[:10],
+                "oscal-version": OSCAL_VERSION,
+            },
+            "import-ssp": {"href": f"#ssp-{system.code}"},
+            "system-id": {"id": system.code},
+            "poam-items": poam_items,
+        }
+    }

@@ -8,12 +8,20 @@ import {
   Select,
   Stack,
   Table,
+  Text,
   TextInput,
   Textarea,
   Title,
 } from "@mantine/core";
 import { useState } from "react";
-import { api, errorText, type Categorization, type System, type User } from "../api";
+import {
+  api,
+  errorText,
+  type AgentBootstrapResult,
+  type Categorization,
+  type System,
+  type User,
+} from "../api";
 import { EmptyRow, useFetch } from "../components/shared";
 import { LEVEL_COLORS, LEVEL_LABELS, PROFILE_LABELS } from "../labels";
 
@@ -53,6 +61,29 @@ export default function SystemsPage() {
   const [impactA, setImpactA] = useState<string | null>(null);
   const [ndProfile, setNdProfile] = useState<string | null>(null);
   const [catResult, setCatResult] = useState<Categorization | null>(null);
+
+  // AI-агент (RMF-bootstrap)
+  const [agentResult, setAgentResult] = useState<AgentBootstrapResult | null>(null);
+  const [agentBusy, setAgentBusy] = useState<number | null>(null);
+
+  async function runAgent(system: System) {
+    if (!window.confirm(
+      `AI підготує чернетки RMF для «${system.name}» (профіль, SSP, наративи, POA&M). ` +
+      "Нічого не затверджується. Продовжити?",
+    )) return;
+    setAgentBusy(system.id);
+    setError("");
+    try {
+      const { data } = await api.post<AgentBootstrapResult>(
+        `/ai/agent/bootstrap-ics/${system.id}`, { max_narratives: 10 },
+      );
+      setAgentResult(data);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setAgentBusy(null);
+    }
+  }
 
   function openCategorize(system: System) {
     setCatSystem(system);
@@ -210,6 +241,15 @@ export default function SystemsPage() {
                     </Button>
                     <Button
                       size="compact-xs"
+                      variant="light"
+                      color="grape"
+                      loading={agentBusy === system.id}
+                      onClick={() => void runAgent(system)}
+                    >
+                      ✨ AI RMF
+                    </Button>
+                    <Button
+                      size="compact-xs"
                       color="red"
                       variant="subtle"
                       onClick={() => void remove(system)}
@@ -350,6 +390,35 @@ export default function SystemsPage() {
             </Alert>
           )}
         </Stack>
+      </Modal>
+
+      <Modal
+        opened={agentResult !== null}
+        onClose={() => setAgentResult(null)}
+        title="AI-агент: підготовлено RMF-чернетки"
+        size="lg"
+      >
+        {agentResult && (
+          <Stack>
+            <Alert color="grape" variant="light">
+              Створено <strong>чернетки</strong> для перевірки людиною — нічого не
+              затверджено.
+            </Alert>
+            <Group>
+              <Badge variant="light">Профіль #{agentResult.profile_id}</Badge>
+              <Badge variant="light">SSP #{agentResult.ssp_id}</Badge>
+              <Badge variant="light">Наративів: {agentResult.narratives_drafted}</Badge>
+              <Badge variant="light">POA&M: {agentResult.poam_created}</Badge>
+            </Group>
+            <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+              {agentResult.summary}
+            </Text>
+            <Text size="xs" c="dimmed">
+              Далі: перевірте наративи в «SSP», оцініть контролі в «Оцінювання»,
+              затвердіть SSP.
+            </Text>
+          </Stack>
+        )}
       </Modal>
     </>
   );

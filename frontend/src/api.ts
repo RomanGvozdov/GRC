@@ -717,3 +717,20 @@ export interface AiControlSuggestions {
   rationale: string;
   suggestion_id: number;
 }
+
+export interface AgentRunStep {
+  step: string;
+  status: string;
+  [k: string]: unknown;
+}
+
+export interface AgentBootstrapResult {
+  system_id: number;
+  profile_id: number;
+  ssp_id: number;
+  narratives_drafted: number;
+  poam_created: number;
+  steps: AgentRunStep[];
+  summary: string;
+  suggestion_id: number;
+}

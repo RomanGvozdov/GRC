@@ -62,6 +62,13 @@ class MapControlIn(BaseModel):
     k: int = Field(default=5, ge=1, le=20)
 
 
+class AgentBootstrapIn(BaseModel):
+    baseline_id: int | None = None  # якщо не задано — взяти з категоризації ІКС
+    draft_narratives: bool = True
+    max_narratives: int = Field(default=5, ge=0, le=50)
+    generate_poam: bool = True
+
+
 class RecommendControlsIn(BaseModel):
     risk_id: int
     framework_id: int | None = None
@@ -378,6 +385,152 @@ def ai_recommend_controls(
     db.add(suggestion)
     db.commit()
     return {"suggestions": suggestions, "rationale": rationale, "suggestion_id": suggestion.id}
+
+
+_ND_LEVEL = {
+    "confidential": "nd_confidential", "service": "nd_service", "registry": "nd_registry",
+}
+_IMPACT_RANK = {"low": 0, "moderate": 1, "high": 2}
+
+
+def _derive_baseline_id(db, system, explicit):
+    from app.models import Baseline
+    if explicit:
+        return explicit
+    if system.profile_type and system.profile_type in _ND_LEVEL:
+        b = db.scalar(
+            select(Baseline).where(Baseline.level == _ND_LEVEL[system.profile_type])
+            .order_by(Baseline.id)
+        )
+        if b:
+            return b.id
+    impacts = [system.impact_confidentiality, system.impact_integrity,
+               system.impact_availability]
+    present = [i for i in impacts if i]
+    if present:
+        overall = max(present, key=lambda x: _IMPACT_RANK.get(x, 0))
+        b = db.scalar(select(Baseline).where(Baseline.level == overall).order_by(Baseline.id))
+        if b:
+            return b.id
+    return None
+
+
+@router.post("/agent/bootstrap-ics/{system_id}")
+def agent_bootstrap_ics(
+    system_id: int,
+    body: AgentBootstrapIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+):
+    """AI-сценарій 4 (агентний): за один тригер готує чернетки RMF-артефактів для ІКС —
+    профіль (із категоризації/baseline) → SSP → AI-наративи контролів → POA&M з прогалин —
+    і AI-резюме. Детермінований конвеєр; усе створюється як ЧЕРНЕТКИ (нічого не
+    затверджується), кожен крок логується. КСЗІ: лише локальний LLM."""
+    from app.api.poam import poam_from_profile_gaps
+    from app.api.profiles import generate_profile
+    from app.api.ssp import generate_ssp
+    from app.models import InformationSystem, Profile, ProfileControl, SSP, SSPControl
+    from app.schemas import ProfileGenerateIn, SSPGenerateIn
+
+    provider = _require_enabled()
+    system = db.get(InformationSystem, system_id)
+    if system is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Систему не знайдено")
+
+    baseline_id = _derive_baseline_id(db, system, body.baseline_id)
+    if baseline_id is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Спочатку категоризуйте ІКС (профіль/impact) або передайте baseline_id.",
+        )
+
+    steps: list[dict] = []
+
+    # 1. Профіль: перевикористати наявний (не superseded) або згенерувати
+    profile = db.scalar(
+        select(Profile).where(
+            Profile.system_id == system_id, Profile.status != "superseded"
+        ).order_by(Profile.id.desc())
+    )
+    if profile is None:
+        detail = generate_profile(
+            system_id, ProfileGenerateIn(baseline_id=baseline_id), db, actor
+        )
+        profile = db.get(Profile, detail.id)
+        steps.append({"step": "profile", "status": "created", "id": profile.id})
+    else:
+        steps.append({"step": "profile", "status": "reused", "id": profile.id})
+
+    # 2. SSP — нова чернетка з профілю
+    ssp_detail = generate_ssp(
+        system_id, SSPGenerateIn(profile_id=profile.id), db, actor
+    )
+    steps.append({"step": "ssp", "status": "created", "id": ssp_detail.id,
+                  "controls": ssp_detail.control_count})
+
+    # 3. AI-наративи для перших N контролів SSP (чернетки в чернетковому SSP)
+    drafted = 0
+    if body.draft_narratives and body.max_narratives > 0:
+        controls = db.scalars(
+            select(SSPControl).where(SSPControl.ssp_id == ssp_detail.id)
+            .order_by(SSPControl.id).limit(body.max_narratives)
+        ).all()
+        for c in controls:
+            req = c.requirement
+            text = provider.chat([
+                {"role": "system", "content": _DRAFT_SYSTEM_PROMPT},
+                {"role": "user", "content": (
+                    f"Напиши чернетку опису впровадження контролю «{req.code} {req.title}» "
+                    f"для ІКС «{system.name}». Текст контролю: {req.description or '—'}"
+                )},
+            ])
+            c.narrative = text
+            drafted += 1
+        db.commit()
+    steps.append({"step": "narratives", "status": "drafted", "count": drafted})
+
+    # 4. POA&M з прогалин профілю
+    poam_created = 0
+    if body.generate_poam:
+        poam = poam_from_profile_gaps(system_id, profile.id, db, actor)
+        poam_created = poam.created
+        steps.append({"step": "poam", "status": "generated",
+                      "created": poam.created, "skipped": poam.skipped})
+
+    # 5. AI-резюме виконаного
+    summary = provider.chat([
+        {"role": "system", "content": _DRAFT_SYSTEM_PROMPT},
+        {"role": "user", "content": (
+            f"Стисло УКРАЇНСЬКОЮ підсумуй автоматичну підготовку RMF-чернеток для ІКС "
+            f"«{system.name}»: створено цільовий профіль ({ssp_detail.control_count} "
+            f"контролів), SSP, {drafted} чернеток наративів, {poam_created} пунктів POA&M "
+            f"з прогалин. Вкажи, що це ЧЕРНЕТКИ для перевірки людиною, і назви наступні "
+            f"кроки (перевірити наративи, оцінити контролі, затвердити SSP)."
+        )},
+    ])
+
+    suggestion = AISuggestion(
+        kind="agent", user_id=actor.id, model=provider.model,
+        prompt_hash=ai_provider.prompt_hash(f"bootstrap:{system_id}:{baseline_id}"),
+        query=f"bootstrap ІКС «{system.name}»", output=summary,
+        citations=[{"step": s["step"], "status": s["status"]} for s in steps],
+    )
+    db.add(suggestion)
+    log_action(db, actor, "ai_agent_bootstrap", "system", system_id,
+               {"profile_id": profile.id, "ssp_id": ssp_detail.id,
+                "narratives": drafted, "poam": poam_created})
+    db.commit()
+
+    return {
+        "system_id": system_id,
+        "profile_id": profile.id,
+        "ssp_id": ssp_detail.id,
+        "narratives_drafted": drafted,
+        "poam_created": poam_created,
+        "steps": steps,
+        "summary": summary,
+        "suggestion_id": suggestion.id,
+    }
 
 
 @router.post("/suggestions/{suggestion_id}/accept")

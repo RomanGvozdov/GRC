@@ -7,6 +7,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -47,6 +48,7 @@ from app.schemas import (
     TailoringIn,
 )
 from app.services.audit import log_action
+from app.services.oscal import build_profile_oscal
 
 router = APIRouter(tags=["profiles"])
 
@@ -339,12 +341,8 @@ def new_version(
 
 # --- Резолвлене подання (для SSP/звітів) ---
 
-@router.get("/profiles/{profile_id}/resolved", response_model=ResolvedProfileOut)
-def resolved_profile(
-    profile_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
-):
-    """Підсумковий набір контролів профілю: лише включені, з резолвленими ODP-значеннями
-    (значення профілю або default) і текстом вимоги під тип профілю ІКС."""
+def _resolve(db: Session, profile_id: int) -> ResolvedProfileOut | None:
+    """Резолвлене подання профілю (спільне для /resolved і /oscal)."""
     profile = db.scalar(
         select(Profile)
         .where(Profile.id == profile_id)
@@ -356,7 +354,7 @@ def resolved_profile(
         )
     )
     if profile is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Профіль не знайдено")
+        return None
 
     system = db.get(InformationSystem, profile.system_id)
     profile_type = system.profile_type if system else None
@@ -398,6 +396,46 @@ def resolved_profile(
         status=profile.status,
         control_count=len(controls),
         controls=controls,
+    )
+
+
+@router.get("/profiles/{profile_id}/resolved", response_model=ResolvedProfileOut)
+def resolved_profile(
+    profile_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+):
+    """Підсумковий набір контролів профілю: лише включені, з резолвленими ODP-значеннями
+    (значення профілю або default) і текстом вимоги під тип профілю ІКС."""
+    resolved = _resolve(db, profile_id)
+    if resolved is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Профіль не знайдено")
+    return resolved
+
+
+@router.get("/profiles/{profile_id}/oscal")
+def export_profile_oscal(
+    profile_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+):
+    """Експорт цільового профілю як OSCAL profile (ТЗ §8): include-controls,
+    set-parameters (резолвлені ODP) та рішення tailoring у метаданих."""
+    resolved = _resolve(db, profile_id)
+    if resolved is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Профіль не знайдено")
+    profile = db.scalar(
+        select(Profile).where(Profile.id == profile_id)
+        .options(selectinload(Profile.decisions))
+    )
+    system = db.get(InformationSystem, profile.system_id)
+    catalog_ref = "catalog"
+    if profile.baseline_id:
+        baseline = db.get(Baseline, profile.baseline_id)
+        if baseline:
+            catalog_ref = f"catalog-{baseline.catalog_id}"
+    doc = build_profile_oscal(profile, system, resolved, profile.decisions, catalog_ref)
+    return JSONResponse(
+        doc,
+        headers={
+            "Content-Disposition": f'attachment; filename="profile-{profile_id}-oscal.json"'
+        },
     )
 
 

@@ -24,10 +24,16 @@ XLSX = DOCS / "nist_800-53r5_nd-tzi_controls.xlsx"
 REGISTRY_DOCX = DOCS / "galuzevyi_profil_reestriv.docx"
 PROFILE_FILE = ROOT / "app" / "seed_data" / "nd_tzi_3_6_006_24.json"
 OUT = ROOT / "app" / "seed_data" / "nd_tzi_catalog.json"
+OUT_EN = ROOT / "app" / "seed_data" / "nist_800_53_r5_en.json"
 
 CATALOG_CODE = "nd-tzi-3-6-006-24"
 CATALOG_NAME = "НД ТЗІ 3.6-006-24 (повний каталог, NIST 800-53 Rev 5)"
 CATALOG_VERSION = "2024.r5"
+
+EN_CATALOG_CODE = "nist-800-53-r5-en"
+EN_CATALOG_NAME = "NIST SP 800-53 Rev. 5 (English)"
+EN_CATALOG_VERSION = "Rev. 5"
+EN_SHEET = "SP 800-53 Rev 5 (EN)"
 
 _CYR = "АВСЕНІКМОРТХУ"
 _LAT = "ABCEHIKMOPTXY"
@@ -52,7 +58,10 @@ def registry_codes() -> set[str]:
 
 
 def profile_membership() -> tuple[set[str], set[str]]:
-    data = json.loads(PROFILE_FILE.read_text(encoding="utf-8"))
+    # Джерело членства конфіденц./службова: первинний профільний файл, а якщо його
+    # вже прибрано — раніше згенерований каталог (self-contained, відтворюється).
+    src = PROFILE_FILE if PROFILE_FILE.exists() else OUT
+    data = json.loads(src.read_text(encoding="utf-8"))
     conf, serv = set(), set()
     for r in data["requirements"]:
         profiles = r.get("profiles") or []
@@ -69,6 +78,39 @@ def build_description(text: str, guidance: str) -> str:
     if guidance and guidance.lower() != "немає.":
         return f"{text}\n\nРекомендації з реалізації:\n{guidance}"
     return text
+
+
+def build_english_catalog() -> int:
+    """Англійський каталог NIST 800-53 Rev 5 (data-only, без профілів) — для OSCAL/
+    NIST крос-референсу та майбутньої EN-локалізації."""
+    wb = openpyxl.load_workbook(XLSX, read_only=True, data_only=True)
+    ws = wb[EN_SHEET]
+    requirements, seen = [], set()
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or not row[0]:
+            continue
+        code = str(row[0]).strip()
+        if code in seen:
+            continue
+        seen.add(code)
+        description = str(row[2] or "").strip()
+        discussion = str(row[3] or "").strip()
+        if discussion and discussion.lower() != "none.":
+            description = f"{description}\n\nDiscussion:\n{discussion}"
+        requirements.append({
+            "code": code,
+            "title": str(row[1] or "").strip()[:500],
+            "description": description,
+        })
+    out = {
+        "code": EN_CATALOG_CODE,
+        "name": EN_CATALOG_NAME,
+        "version": EN_CATALOG_VERSION,
+        "is_custom": False,
+        "requirements": requirements,
+    }
+    OUT_EN.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+    return len(requirements)
 
 
 def main() -> None:
@@ -119,6 +161,9 @@ def main() -> None:
     miss = registry - seen
     if miss:
         print(f"  УВАГА: реєстрові коди поза каталогом: {sorted(miss)}")
+
+    en_count = build_english_catalog()
+    print(f"Записано {en_count} заходів у {OUT_EN.name} (англ. каталог)")
 
 
 if __name__ == "__main__":

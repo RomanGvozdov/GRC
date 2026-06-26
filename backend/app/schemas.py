@@ -606,6 +606,27 @@ class ConMonHealthOut(BaseModel):
     drift: list[ConMonControlOut] = []  # контролі з простроченими доказами
 
 
+# --- Авторозрахунок ризику (ТЗ §8) ---
+
+class RiskControlEffectivenessOut(BaseModel):
+    code: str
+    name: str
+    status: str | None
+    effectiveness: float | None
+
+
+class ResidualPreviewOut(BaseModel):
+    effectiveness: float
+    inherent_likelihood: int | None
+    inherent_impact: int | None
+    computed_residual_likelihood: int | None
+    computed_residual_impact: int | None
+    current_residual_likelihood: int | None
+    current_residual_impact: int | None
+    applied: bool
+    controls: list[RiskControlEffectivenessOut] = []
+
+
 class EvidenceOut(ORMModel):
     id: int
     kind: str

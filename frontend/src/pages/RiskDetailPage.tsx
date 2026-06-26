@@ -24,6 +24,7 @@ import {
   type Category,
   type Comment,
   type ControlListItem,
+  type ResidualPreview,
   type Risk,
   type SystemBrief,
   type User,
@@ -78,6 +79,7 @@ export default function RiskDetailPage() {
   const [assessKind, setAssessKind] = useState<string | null>("residual");
   const [likelihood, setLikelihood] = useState<string | null>(null);
   const [impact, setImpact] = useState<string | null>(null);
+  const [residualPreview, setResidualPreview] = useState<ResidualPreview | null>(null);
 
   const [actionModal, setActionModal] = useState(false);
   const [actionTitle, setActionTitle] = useState("");
@@ -136,6 +138,33 @@ export default function RiskDetailPage() {
         impact: Number(impact),
       }),
     );
+
+  async function previewResidual() {
+    setError("");
+    setBusy(true);
+    try {
+      const { data } = await api.post<ResidualPreview>(`/risks/${id}/recalc-residual`);
+      setResidualPreview(data);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyResidual() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/risks/${id}/recalc-residual?apply=true`);
+      setResidualPreview(null);
+      reload();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const addAction = () =>
     call(async () => {
@@ -427,6 +456,9 @@ export default function RiskDetailPage() {
                 >
                   Оцінити
                 </Button>
+                <Button variant="default" onClick={() => void previewResidual()} loading={busy}>
+                  Авторозрахунок залишкового
+                </Button>
               </Group>
             )}
             <Title order={6} mb="xs">
@@ -513,6 +545,60 @@ export default function RiskDetailPage() {
             Додати
           </Button>
         </Stack>
+      </Modal>
+
+      <Modal
+        opened={residualPreview !== null}
+        onClose={() => setResidualPreview(null)}
+        title="Авторозрахунок залишкового ризику"
+        size="lg"
+      >
+        {residualPreview && (
+          <Stack>
+            <Text size="sm">
+              Сукупна ефективність контролів:{" "}
+              <strong>{Math.round(residualPreview.effectiveness * 100)}%</strong>
+            </Text>
+            <Text size="sm">
+              Притаманний: Й{residualPreview.inherent_likelihood ?? "—"} × В
+              {residualPreview.inherent_impact ?? "—"} → обчислений залишковий:{" "}
+              <strong>
+                Й{residualPreview.computed_residual_likelihood ?? "—"} × В
+                {residualPreview.computed_residual_impact ?? "—"}
+              </strong>
+            </Text>
+            <Text size="xs" c="dimmed">
+              Контролі зменшують ймовірність, не вплив. Поточне значення:{" "}
+              Й{residualPreview.current_residual_likelihood ?? "—"} × В
+              {residualPreview.current_residual_impact ?? "—"}.
+            </Text>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Контроль</Table.Th>
+                  <Table.Th>Статус</Table.Th>
+                  <Table.Th>Ефективність</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {residualPreview.controls.map((c) => (
+                  <Table.Tr key={c.code}>
+                    <Table.Td>{c.code}</Table.Td>
+                    <Table.Td>{c.status ?? "немає впровадження"}</Table.Td>
+                    <Table.Td>
+                      {c.effectiveness === null ? "—" : `${Math.round(c.effectiveness * 100)}%`}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+            {editable && (
+              <Button onClick={() => void applyResidual()} loading={busy}>
+                Застосувати як залишкову оцінку
+              </Button>
+            )}
+          </Stack>
+        )}
       </Modal>
     </>
   );

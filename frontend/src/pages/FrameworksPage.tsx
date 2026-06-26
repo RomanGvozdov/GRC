@@ -19,6 +19,16 @@ import { api, errorText, type Framework, type Requirement } from "../api";
 import { useFetch } from "../components/shared";
 import { PROFILE_LABELS, PROFILE_SHORT } from "../labels";
 
+async function downloadFile(url: string, filename: string) {
+  const { data } = await api.get(url, { responseType: "blob" });
+  const href = URL.createObjectURL(data as Blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(href);
+}
+
 export default function FrameworksPage() {
   const { data: frameworks, reload } = useFetch<Framework[]>("/frameworks");
   const [selected, setSelected] = useState<Framework | null>(null);
@@ -171,20 +181,35 @@ export default function FrameworksPage() {
                         </Badge>
                       )}
                     </Table.Td>
-                    <Table.Td w={50}>
-                      {framework.is_custom && (
+                    <Table.Td w={120}>
+                      <Group gap={4} wrap="nowrap">
                         <Button
                           size="compact-xs"
-                          color="red"
                           variant="subtle"
                           onClick={(e) => {
                             e.stopPropagation();
-                            deleteFramework(framework);
+                            void downloadFile(
+                              `/frameworks/${framework.id}/oscal`,
+                              `catalog-${framework.id}-oscal.json`,
+                            );
                           }}
                         >
-                          ✕
+                          OSCAL
                         </Button>
-                      )}
+                        {framework.is_custom && (
+                          <Button
+                            size="compact-xs"
+                            color="red"
+                            variant="subtle"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteFramework(framework);
+                            }}
+                          >
+                            ✕
+                          </Button>
+                        )}
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 ))}

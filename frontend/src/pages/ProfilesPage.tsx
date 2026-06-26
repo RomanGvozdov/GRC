@@ -28,6 +28,16 @@ import {
 import { useFetch } from "../components/shared";
 import { useSystem } from "../systemContext";
 
+async function downloadFile(url: string, filename: string) {
+  const { data } = await api.get(url, { responseType: "blob" });
+  const href = URL.createObjectURL(data as Blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(href);
+}
+
 const STATUS_LABELS: Record<string, string> = {
   draft: "Чернетка",
   approved: "Затверджено",
@@ -255,6 +265,13 @@ export default function ProfilesPage() {
                   </Text>
                 </div>
                 <Group gap="xs">
+                  <Button
+                    size="xs"
+                    variant="default"
+                    onClick={() => void downloadFile(`/profiles/${detail.id}/oscal`, `profile-${detail.id}-oscal.json`)}
+                  >
+                    OSCAL
+                  </Button>
                   {isDraft && (
                     <>
                       <Button size="xs" variant="default" onClick={() => void openAddControl()}>

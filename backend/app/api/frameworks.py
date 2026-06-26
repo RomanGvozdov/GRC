@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -24,6 +25,7 @@ from app.schemas import (
 )
 from app.schemas_phase2 import FrameworkImportIn, FrameworkIn, RequirementIn
 from app.services.audit import log_action
+from app.services.oscal import build_catalog_oscal
 
 router = APIRouter(prefix="/frameworks", tags=["compliance"])
 
@@ -96,6 +98,30 @@ def list_requirements(
     if profile_type:
         requirements = [r for r in requirements if requirement_applies(r, profile_type)]
     return [requirement_out(r, profile_type) for r in requirements]
+
+
+@router.get("/{framework_id}/oscal")
+def export_catalog_oscal(
+    framework_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+):
+    """Експорт каталогу як OSCAL catalog (ТЗ §8): групи-родини, ієрархія
+    базовий→посилення (через parent_id), ODP-параметри."""
+    framework = db.get(Framework, framework_id)
+    if framework is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Фреймворк не знайдено")
+    requirements = db.scalars(
+        select(Requirement)
+        .where(Requirement.framework_id == framework_id)
+        .options(selectinload(Requirement.parameters))
+        .order_by(Requirement.id)
+    ).all()
+    doc = build_catalog_oscal(framework, requirements)
+    return JSONResponse(
+        doc,
+        headers={
+            "Content-Disposition": f'attachment; filename="catalog-{framework_id}-oscal.json"'
+        },
+    )
 
 
 @router.post("", response_model=FrameworkOut, status_code=status.HTTP_201_CREATED)

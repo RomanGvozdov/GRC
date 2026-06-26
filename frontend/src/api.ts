@@ -350,6 +350,27 @@ export interface ConMonHealth {
   drift: ConMonControl[];
 }
 
+// --- Авторозрахунок ризику (ТЗ §8) ---
+
+export interface RiskControlEffectiveness {
+  code: string;
+  name: string;
+  status: string | null;
+  effectiveness: number | null;
+}
+
+export interface ResidualPreview {
+  effectiveness: number;
+  inherent_likelihood: number | null;
+  inherent_impact: number | null;
+  computed_residual_likelihood: number | null;
+  computed_residual_impact: number | null;
+  current_residual_likelihood: number | null;
+  current_residual_impact: number | null;
+  applied: boolean;
+  controls: RiskControlEffectiveness[];
+}
+
 export interface ControlBrief {
   id: number;
   code: string;

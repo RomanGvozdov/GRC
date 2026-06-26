@@ -23,14 +23,22 @@ from app.models import (
 )
 from app.schemas import (
     AssessmentIn,
+    ResidualPreviewOut,
     RiskBrief,
+    RiskControlEffectivenessOut,
     RiskIn,
     RiskOut,
     TreatmentActionIn,
     TreatmentActionOut,
 )
+from app.models import effective_status_for_system
 from app.services.audit import log_action
 from app.services.notify import notify_user
+from app.services.risk_calc import (
+    compute_residual,
+    control_effectiveness,
+    effectiveness_for_risk,
+)
 
 router = APIRouter(prefix="/risks", tags=["risks"])
 
@@ -230,6 +238,75 @@ def add_assessment(
     )
     db.commit()
     return _get_risk(db, risk_id)
+
+
+@router.post("/{risk_id}/recalc-residual", response_model=ResidualPreviewOut)
+def recalc_residual(
+    risk_id: int,
+    apply: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    """Авторозрахунок залишкового ризику з ефективності пов'язаних контролів (ТЗ §8).
+
+    За замовчуванням — прев'ю (нічого не зберігає). `apply=true` застосовує результат
+    і додає запис в історію оцінок (не перетирає ручні оцінки без явного виклику)."""
+    risk = db.get(
+        Risk, risk_id,
+        options=[
+            selectinload(Risk.controls).selectinload(Control.implementations),
+            selectinload(Risk.systems),
+            selectinload(Risk.assessments),
+        ],
+    )
+    if risk is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ризик не знайдено")
+    _check_edit(actor, risk)
+
+    effectiveness, system_id = effectiveness_for_risk(risk)
+    res_l, res_i = compute_residual(
+        risk.inherent_likelihood, risk.inherent_impact, effectiveness
+    )
+
+    controls_detail = [
+        RiskControlEffectivenessOut(
+            code=c.code,
+            name=c.name,
+            status=effective_status_for_system(c.implementations, system_id),
+            effectiveness=control_effectiveness(c, system_id),
+        )
+        for c in risk.controls
+    ]
+
+    applied = False
+    if apply and res_l is not None:
+        risk.residual_likelihood, risk.residual_impact = res_l, res_i
+        risk.assessments.append(
+            RiskAssessment(
+                kind="residual", likelihood=res_l, impact=res_i, assessed_by_id=actor.id
+            )
+        )
+        if risk.status in (RiskStatus.DRAFT.value, RiskStatus.IDENTIFIED.value):
+            risk.status = RiskStatus.ASSESSED.value
+        log_action(
+            db, actor, "recalc_residual", "risk", risk.id,
+            {"effectiveness": round(effectiveness, 3), "residual_likelihood": res_l,
+             "residual_impact": res_i},
+        )
+        db.commit()
+        applied = True
+
+    return ResidualPreviewOut(
+        effectiveness=round(effectiveness, 3),
+        inherent_likelihood=risk.inherent_likelihood,
+        inherent_impact=risk.inherent_impact,
+        computed_residual_likelihood=res_l,
+        computed_residual_impact=res_i,
+        current_residual_likelihood=risk.residual_likelihood,
+        current_residual_impact=risk.residual_impact,
+        applied=applied,
+        controls=controls_detail,
+    )
 
 
 @router.post("/{risk_id}/actions", response_model=TreatmentActionOut, status_code=201)

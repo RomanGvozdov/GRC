@@ -703,3 +703,17 @@ export interface AiDraft {
   citations: AiCitation[];
   suggestion_id: number;
 }
+
+export interface AiControlSuggestion {
+  requirement_id: number;
+  code: string;
+  title: string;
+  framework_id: number;
+  score: number;
+}
+
+export interface AiControlSuggestions {
+  suggestions: AiControlSuggestion[];
+  rationale: string;
+  suggestion_id: number;
+}

@@ -8,6 +8,7 @@ import {
   Loader,
   Modal,
   MultiSelect,
+  Select,
   Stack,
   Table,
   Text,
@@ -15,7 +16,13 @@ import {
   Title,
 } from "@mantine/core";
 import { useState } from "react";
-import { api, errorText, type Framework, type Requirement } from "../api";
+import {
+  api,
+  errorText,
+  type AiControlSuggestions,
+  type Framework,
+  type Requirement,
+} from "../api";
 import { useFetch } from "../components/shared";
 import { PROFILE_LABELS, PROFILE_SHORT } from "../labels";
 
@@ -47,6 +54,28 @@ export default function FrameworksPage() {
   const [reqTitle, setReqTitle] = useState("");
   const [reqProfiles, setReqProfiles] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  // AI-зіставлення контролів (сценарій 3)
+  const [mapTarget, setMapTarget] = useState<string | null>(null);
+  const [mapResult, setMapResult] = useState<(AiControlSuggestions & { source: string }) | null>(null);
+  const [mapping, setMapping] = useState(false);
+
+  async function mapControl(req: Requirement) {
+    if (!mapTarget) return;
+    setMapping(true);
+    setError("");
+    try {
+      const { data } = await api.post<AiControlSuggestions>("/ai/map-control", {
+        requirement_id: req.id,
+        target_framework_id: Number(mapTarget),
+      });
+      setMapResult({ ...data, source: `${req.code} ${req.title}` });
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setMapping(false);
+    }
+  }
 
   function toggle(id: number) {
     setExpanded((prev) => {
@@ -218,9 +247,27 @@ export default function FrameworksPage() {
           </Card>
 
           <Card withBorder padding="md">
-            <Title order={4} mb="sm">
-              {selected ? `Вимоги: ${selected.name}` : "Оберіть каталог"}
-            </Title>
+            <Group justify="space-between" mb="sm" align="end">
+              <Title order={4}>
+                {selected ? `Вимоги: ${selected.name}` : "Оберіть каталог"}
+              </Title>
+              {selected && (
+                <Select
+                  label="AI-зіставлення з каталогом"
+                  placeholder="оберіть цільовий"
+                  data={
+                    frameworks
+                      ?.filter((f) => f.id !== selected.id)
+                      .map((f) => ({ value: String(f.id), label: f.name })) ?? []
+                  }
+                  value={mapTarget}
+                  onChange={setMapTarget}
+                  clearable
+                  w={260}
+                  size="xs"
+                />
+              )}
+            </Group>
             {selected?.is_custom && (
               <Group mb="sm" align="end">
                 <TextInput
@@ -276,6 +323,20 @@ export default function FrameworksPage() {
                                 {PROFILE_SHORT[p] ?? p}
                               </Badge>
                             ))}
+                            {mapTarget && (
+                              <Button
+                                size="compact-xs"
+                                variant="subtle"
+                                ml={6}
+                                loading={mapping}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void mapControl(req);
+                                }}
+                              >
+                                ↔ AI
+                              </Button>
+                            )}
                           </Table.Td>
                           {selected.is_custom && (
                             <Table.Td w={50}>
@@ -335,6 +396,42 @@ export default function FrameworksPage() {
             Створити
           </Button>
         </Stack>
+      </Modal>
+
+      <Modal
+        opened={mapResult !== null}
+        onClose={() => setMapResult(null)}
+        title="AI-зіставлення контролів"
+        size="lg"
+      >
+        {mapResult && (
+          <Stack>
+            <Text size="sm" c="dimmed">
+              Джерело: <strong>{mapResult.source}</strong>
+            </Text>
+            <Table striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th w={120}>Кандидат</Table.Th>
+                  <Table.Th>Назва</Table.Th>
+                  <Table.Th w={90}>Подібність</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {mapResult.suggestions.map((s) => (
+                  <Table.Tr key={s.requirement_id}>
+                    <Table.Td>{s.code}</Table.Td>
+                    <Table.Td>{s.title}</Table.Td>
+                    <Table.Td>{Math.round(s.score * 100)}%</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+            <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+              {mapResult.rationale}
+            </Text>
+          </Stack>
+        )}
       </Modal>
     </>
   );

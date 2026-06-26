@@ -11,10 +11,12 @@ from app.database import engine, get_db
 from app.models import (
     AISuggestion,
     Control,
+    Framework,
     InformationSystem,
     Policy,
     PolicyVersion,
     Requirement,
+    Risk,
     User,
 )
 from app.services.ai import provider as ai_provider
@@ -52,6 +54,18 @@ class DraftIn(BaseModel):
     system_id: int | None = None
     topic: str | None = None
     k: int = Field(default=5, ge=0, le=20)
+
+
+class MapControlIn(BaseModel):
+    requirement_id: int
+    target_framework_id: int
+    k: int = Field(default=5, ge=1, le=20)
+
+
+class RecommendControlsIn(BaseModel):
+    risk_id: int
+    framework_id: int | None = None
+    k: int = Field(default=8, ge=1, le=20)
 
 
 def _require_enabled() -> ai_provider.AIProvider:
@@ -232,6 +246,138 @@ def ai_draft_narrative(
     db.add(suggestion)
     db.commit()
     return {"draft": draft, "citations": citations, "suggestion_id": suggestion.id}
+
+
+def _require_vector(provider):
+    if not ai_store.vector_ready(engine):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Векторне сховище недоступне (потрібен PostgreSQL + vector; зробіть /ai/index).",
+        )
+
+
+def _candidate_requirements(db, provider, query, framework_id, k, exclude_id=None):
+    """RAG-кандидати-вимоги: семантичний пошук + фільтр за каталогом."""
+    hits = ai_store.search(engine, provider.embed([query])[0], k=k * 6)
+    out, seen = [], set()
+    for h in hits:
+        if h["source_type"] != "requirement":
+            continue
+        rid = h["source_id"]
+        if rid == exclude_id or rid in seen:
+            continue
+        req = db.get(Requirement, rid)
+        if req is None or (framework_id and req.framework_id != framework_id):
+            continue
+        seen.add(rid)
+        out.append((req, round(float(h.get("score", 0)), 4)))
+        if len(out) >= k:
+            break
+    return out
+
+
+@router.post("/map-control")
+def ai_map_control(
+    body: MapControlIn, db: Session = Depends(get_db), actor: User = Depends(get_current_user)
+):
+    """AI-сценарій 3: зіставлення контролю з відповідниками в іншому каталозі
+    (800-53 ↔ НД ТЗІ ↔ ISO). Кандидати — детерміновані (RAG + точний збіг коду),
+    пояснення — від LLM. Провенанс у AISuggestion. Зв'язування — вручну."""
+    provider = _require_enabled()
+    _require_vector(provider)
+    src = db.get(Requirement, body.requirement_id)
+    if src is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Вимогу не знайдено")
+    target = db.get(Framework, body.target_framework_id)
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Цільовий каталог не знайдено")
+
+    query = f"{src.code} {src.title}\n{src.description or ''}".strip()
+    candidates = _candidate_requirements(
+        db, provider, query, body.target_framework_id, body.k, exclude_id=src.id
+    )
+    # Точний збіг коду в цільовому каталозі — найвпевненіший кандидат
+    exact = db.scalar(
+        select(Requirement).where(
+            Requirement.framework_id == target.id, Requirement.code == src.code
+        )
+    )
+    if exact and all(r.id != exact.id for r, _ in candidates):
+        candidates.insert(0, (exact, 1.0))
+
+    suggestions = [
+        {"requirement_id": r.id, "code": r.code, "title": r.title,
+         "framework_id": r.framework_id, "score": s}
+        for r, s in candidates
+    ]
+    cand_text = "\n".join(f"- {r.code} {r.title}" for r, _ in candidates) or "—"
+    rationale = provider.chat([
+        {"role": "system", "content": _DRAFT_SYSTEM_PROMPT},
+        {"role": "user", "content": (
+            f"Контроль-джерело: {src.code} {src.title}. {src.description or ''}\n\n"
+            f"Кандидати-відповідники з каталогу «{target.name}»:\n{cand_text}\n\n"
+            f"Поясни УКРАЇНСЬКОЮ, які кандидати відповідають джерелу і чому; познач "
+            f"найкращий. Якщо точного відповідника немає — чесно скажи."
+        )},
+    ])
+
+    suggestion = AISuggestion(
+        kind="map", user_id=actor.id, model=provider.model,
+        prompt_hash=ai_provider.prompt_hash(query), query=f"{src.code}→{target.code}",
+        output=rationale,
+        citations=[{"source_type": "requirement", "source_id": s["requirement_id"],
+                    "score": s["score"]} for s in suggestions],
+    )
+    db.add(suggestion)
+    db.commit()
+    return {"suggestions": suggestions, "rationale": rationale, "suggestion_id": suggestion.id}
+
+
+@router.post("/recommend-controls")
+def ai_recommend_controls(
+    body: RecommendControlsIn, db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    """AI-сценарій 3: рекомендація контролів каталогу під конкретний ризик
+    (RAG за описом ризику + пояснення LLM). Дорадчо; зв'язування — вручну."""
+    provider = _require_enabled()
+    _require_vector(provider)
+    risk = db.get(Risk, body.risk_id)
+    if risk is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ризик не знайдено")
+
+    query = "\n".join(filter(None, [
+        risk.title, risk.description, risk.threat_source, risk.vulnerability, risk.assets,
+    ])).strip() or risk.title
+    candidates = _candidate_requirements(db, provider, query, body.framework_id, body.k)
+
+    suggestions = [
+        {"requirement_id": r.id, "code": r.code, "title": r.title,
+         "framework_id": r.framework_id, "score": s}
+        for r, s in candidates
+    ]
+    cand_text = "\n".join(f"- {r.code} {r.title}" for r, _ in candidates) or "—"
+    rationale = provider.chat([
+        {"role": "system", "content": _DRAFT_SYSTEM_PROMPT},
+        {"role": "user", "content": (
+            f"Ризик: {risk.title}.\nОпис: {risk.description or '—'}\n"
+            f"Джерело загрози: {risk.threat_source or '—'}\nВразливість: "
+            f"{risk.vulnerability or '—'}\n\nКандидати-контролі:\n{cand_text}\n\n"
+            f"Поясни УКРАЇНСЬКОЮ, які контролі найдоречніші для зменшення цього ризику "
+            f"і чому. Признач пріоритет."
+        )},
+    ])
+
+    suggestion = AISuggestion(
+        kind="recommend", user_id=actor.id, model=provider.model,
+        prompt_hash=ai_provider.prompt_hash(query), query=f"risk#{risk.id} {risk.title}",
+        output=rationale,
+        citations=[{"source_type": "requirement", "source_id": s["requirement_id"],
+                    "score": s["score"]} for s in suggestions],
+    )
+    db.add(suggestion)
+    db.commit()
+    return {"suggestions": suggestions, "rationale": rationale, "suggestion_id": suggestion.id}
 
 
 @router.post("/suggestions/{suggestion_id}/accept")

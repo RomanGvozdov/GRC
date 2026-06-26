@@ -22,6 +22,7 @@ import {
   api,
   errorText,
   type Category,
+  type AiControlSuggestions,
   type Comment,
   type ControlListItem,
   type ResidualPreview,
@@ -80,6 +81,8 @@ export default function RiskDetailPage() {
   const [likelihood, setLikelihood] = useState<string | null>(null);
   const [impact, setImpact] = useState<string | null>(null);
   const [residualPreview, setResidualPreview] = useState<ResidualPreview | null>(null);
+  const [recommend, setRecommend] = useState<AiControlSuggestions | null>(null);
+  const [recommending, setRecommending] = useState(false);
 
   const [actionModal, setActionModal] = useState(false);
   const [actionTitle, setActionTitle] = useState("");
@@ -149,6 +152,21 @@ export default function RiskDetailPage() {
       setError(errorText(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function recommendControls() {
+    setRecommending(true);
+    setError("");
+    try {
+      const { data } = await api.post<AiControlSuggestions>("/ai/recommend-controls", {
+        risk_id: Number(id),
+      });
+      setRecommend(data);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setRecommending(false);
     }
   }
 
@@ -484,9 +502,12 @@ export default function RiskDetailPage() {
           </Card>
 
           <Card withBorder padding="md">
-            <Title order={4} mb="sm">
-              Пов'язані контролі
-            </Title>
+            <Group justify="space-between" mb="sm">
+              <Title order={4}>Пов'язані контролі</Title>
+              <Button variant="default" size="xs" onClick={() => void recommendControls()} loading={recommending}>
+                ✨ AI: рекомендувати контролі
+              </Button>
+            </Group>
             {editable && (
               <Group mb="sm" align="end">
                 <MultiSelect
@@ -597,6 +618,42 @@ export default function RiskDetailPage() {
                 Застосувати як залишкову оцінку
               </Button>
             )}
+          </Stack>
+        )}
+      </Modal>
+
+      <Modal
+        opened={recommend !== null}
+        onClose={() => setRecommend(null)}
+        title="AI: рекомендовані контролі під ризик"
+        size="lg"
+      >
+        {recommend && (
+          <Stack>
+            <Alert color="blue" variant="light">
+              Дорадчо. Перевірте релевантність і додайте потрібні контролі вручну.
+            </Alert>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th w={110}>Контроль</Table.Th>
+                  <Table.Th>Назва</Table.Th>
+                  <Table.Th w={90}>Подібність</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {recommend.suggestions.map((s) => (
+                  <Table.Tr key={s.requirement_id}>
+                    <Table.Td>{s.code}</Table.Td>
+                    <Table.Td>{s.title}</Table.Td>
+                    <Table.Td>{Math.round(s.score * 100)}%</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+            <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
+              {recommend.rationale}
+            </Text>
           </Stack>
         )}
       </Modal>

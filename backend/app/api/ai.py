@@ -8,7 +8,15 @@ from sqlalchemy.orm import Session, selectinload
 from app.config import get_settings
 from app.core.deps import get_current_user, require_admin
 from app.database import engine, get_db
-from app.models import AISuggestion, Control, Policy, PolicyVersion, Requirement, User
+from app.models import (
+    AISuggestion,
+    Control,
+    InformationSystem,
+    Policy,
+    PolicyVersion,
+    Requirement,
+    User,
+)
 from app.services.ai import provider as ai_provider
 from app.services.ai import store as ai_store
 from app.services.audit import log_action
@@ -24,9 +32,26 @@ _SYSTEM_PROMPT = (
 )
 
 
+_DRAFT_SYSTEM_PROMPT = (
+    "Ти — асистент із кібербезпеки та відповідності (НД ТЗІ / NIST 800-53). "
+    "Напиши УКРАЇНСЬКОЮ чернетку для людини-рецензента. Спирайся на наданий контекст; "
+    "де бракує конкретних даних організації — постав явну позначку [ПОТРЕБУЄ УТОЧНЕННЯ], "
+    "а не вигадуй. Пиши діловим стилем, по суті, структуровано. Це чернетка, яку перевірить "
+    "і відредагує фахівець перед використанням."
+)
+
+
 class AskIn(BaseModel):
     query: str = Field(min_length=3)
     k: int = Field(default=5, ge=1, le=20)
+
+
+class DraftIn(BaseModel):
+    kind: str = Field(pattern="^(ssp_control|policy)$")
+    requirement_id: int | None = None
+    system_id: int | None = None
+    topic: str | None = None
+    k: int = Field(default=5, ge=0, le=20)
 
 
 def _require_enabled() -> ai_provider.AIProvider:
@@ -135,6 +160,91 @@ def ai_ask(
     db.add(suggestion)
     db.commit()
     return {"answer": answer, "citations": citations, "suggestion_id": suggestion.id}
+
+
+@router.post("/draft-narrative")
+def ai_draft_narrative(
+    body: DraftIn, db: Session = Depends(get_db), actor: User = Depends(get_current_user)
+):
+    """AI-сценарій 2: чернетка наративу (опис впровадження SSP-контролю або текст
+    політики). Human-in-the-loop: повертає чернетку + провенанс (AISuggestion),
+    НЕ змінює сам артефакт — людина перевіряє й зберігає вручну."""
+    provider = _require_enabled()
+
+    if body.kind == "ssp_control":
+        if body.requirement_id is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Вкажіть requirement_id")
+        req = db.get(Requirement, body.requirement_id)
+        if req is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Вимогу не знайдено")
+        subject = f"{req.code} {req.title}"
+        query = f"{subject}\n{req.description or ''}".strip()
+        system = db.get(InformationSystem, body.system_id) if body.system_id else None
+        sys_line = (
+            f"ІКС: {system.name}. {system.description or ''}".strip()
+            if system else "ІКС: не вказано."
+        )
+        task = (
+            f"Напиши чернетку ОПИСУ ВПРОВАДЖЕННЯ контролю «{subject}» у цій системі — "
+            f"як саме організація реалізує вимогу.\n{sys_line}\nТекст контролю: "
+            f"{req.description or '—'}"
+        )
+    else:  # policy
+        if not body.topic or not body.topic.strip():
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Вкажіть topic")
+        subject = body.topic.strip()
+        query = subject
+        task = (
+            f"Напиши чернетку розділу ПОЛІТИКИ безпеки на тему «{subject}»: мета, сфера "
+            f"застосування, ролі та відповідальність, основні вимоги/правила."
+        )
+
+    # Опційне RAG-заземлення (якщо доступне векторне сховище)
+    citations: list[dict] = []
+    context = ""
+    if body.k > 0 and ai_store.vector_ready(engine):
+        hits = ai_store.search(engine, provider.embed([query])[0], k=body.k)
+        if hits:
+            context = "\n\n".join(
+                f"[{h['source_type']}#{h['source_id']}] {h['content']}" for h in hits
+            )
+            citations = [
+                {"source_type": h["source_type"], "source_id": h["source_id"],
+                 "score": round(float(h.get("score", 0)), 4)}
+                for h in hits
+            ]
+
+    user_content = (f"Контекст:\n{context}\n\n{task}" if context else task)
+    draft = provider.chat([
+        {"role": "system", "content": _DRAFT_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ])
+
+    suggestion = AISuggestion(
+        kind=f"draft_{body.kind}",
+        user_id=actor.id,
+        model=provider.model,
+        prompt_hash=ai_provider.prompt_hash(query),
+        query=subject,
+        output=draft,
+        citations=citations,
+    )
+    db.add(suggestion)
+    db.commit()
+    return {"draft": draft, "citations": citations, "suggestion_id": suggestion.id}
+
+
+@router.post("/suggestions/{suggestion_id}/accept")
+def ai_accept_suggestion(
+    suggestion_id: int, db: Session = Depends(get_db), actor: User = Depends(get_current_user)
+):
+    """Позначити AI-чернетку як прийняту (провенанс human-in-the-loop)."""
+    s = db.get(AISuggestion, suggestion_id)
+    if s is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Пропозицію не знайдено")
+    s.accepted = True
+    db.commit()
+    return {"id": s.id, "accepted": True}
 
 
 @router.get("/suggestions")

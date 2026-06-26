@@ -697,3 +697,9 @@ export interface AiAnswer {
   citations: AiCitation[];
   suggestion_id: number;
 }
+
+export interface AiDraft {
+  draft: string;
+  citations: AiCitation[];
+  suggestion_id: number;
+}

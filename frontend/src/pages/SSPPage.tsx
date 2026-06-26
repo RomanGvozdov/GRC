@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   api,
   errorText,
+  type AiDraft,
   type Profile,
   type SSP,
   type SSPControl,
@@ -70,6 +71,8 @@ export default function SSPPage() {
   const [editStatus, setEditStatus] = useState<string | null>(null);
   const [editNarrative, setEditNarrative] = useState("");
   const [editResponsible, setEditResponsible] = useState<string | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [aiNote, setAiNote] = useState("");
 
   const loadDetail = useCallback(async (id: number) => {
     const { data } = await api.get<SSPDetail>(`/ssp/${id}`);
@@ -107,6 +110,27 @@ export default function SSPPage() {
     setEditStatus(c.implementation_status);
     setEditNarrative(c.narrative ?? "");
     setEditResponsible(c.responsible ? String(c.responsible.id) : null);
+    setAiNote("");
+  }
+
+  async function aiDraft() {
+    if (!editControl || !systemId) return;
+    setDrafting(true);
+    setError("");
+    setAiNote("");
+    try {
+      const { data } = await api.post<AiDraft>("/ai/draft-narrative", {
+        kind: "ssp_control",
+        requirement_id: editControl.requirement.id,
+        system_id: systemId,
+      });
+      setEditNarrative(data.draft);
+      setAiNote("Чернетку згенеровано AI — перевірте й відредагуйте перед збереженням.");
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setDrafting(false);
+    }
   }
 
   async function saveControl() {
@@ -353,14 +377,25 @@ export default function SSPPage() {
             clearable
             searchable
           />
-          <Textarea
-            label="Опис впровадження"
-            description="Як саме реалізовано контроль у цій ІКС"
-            value={editNarrative}
-            onChange={(e) => setEditNarrative(e.currentTarget.value)}
-            minRows={5}
-            autosize
-          />
+          <Group justify="space-between" align="end">
+            <Textarea
+              label="Опис впровадження"
+              description="Як саме реалізовано контроль у цій ІКС"
+              value={editNarrative}
+              onChange={(e) => setEditNarrative(e.currentTarget.value)}
+              minRows={5}
+              autosize
+              style={{ flexGrow: 1 }}
+            />
+          </Group>
+          <Button variant="default" size="xs" onClick={() => void aiDraft()} loading={drafting}>
+            ✨ AI-чернетка
+          </Button>
+          {aiNote && (
+            <Alert color="blue" variant="light" p="xs">
+              {aiNote}
+            </Alert>
+          )}
           <Button onClick={() => void saveControl()} loading={busy}>
             Зберегти
           </Button>

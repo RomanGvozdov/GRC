@@ -7,10 +7,11 @@
 ## TL;DR для наступного чату
 
 - Працюємо в гілці **`claude/awesome-planck-76efci`**.
-- Тести: **77 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
+- Тести: **82 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
 - Alembic head = **`0008`** (Інкремент 4 без міграції — усе обчислюване/дані/String-enum).
-- **Інкременти 1–4 (RMF-конвеєр) — зроблено.** Лишилось: EN-локалізація UI (опційно)
-  та OSCAL-імпорт офіційного 800-53B (коли користувач дасть файл).
+- **Інкременти 1–4 (RMF-конвеєр) + AI-сценарії 1–2 — зроблено.** EN-UI: користувач
+  вирішив **пропустити** (україномовний КСЗІ). Лишилось (опційно): OSCAL-імпорт 800-53B,
+  PDF-експорт артефактів, AI-сценарії 3–4.
 - **Каталог НД ТЗІ — це тепер повний 800-53 Rev 5 (1189 заходів, багатий текст)** з трьома
   профілями (конфіденц./ДСК/реєстри). На розгорнутому сервері старий тонкий каталог
   оновиться автоматично при рестарті (refresh за версією); орфанний `nd-tzi-3-6-006-24-full`
@@ -52,6 +53,7 @@
 | `318ee2a` | **UI «Скинути пароль» для адміна** на сторінці «Користувачі» (модалка → `PATCH /users/{id} {password}`, ≥12 символів). Усі сесії користувача анулюються (`token_version`). Тест `test_password_reset.py`. |
 | `e5ace39` | **Інкр.1, зріз «Baseline + категоризація ІКС» (ревізія `0004`).** Моделі `Baseline`/`BaselineItem` (+`BaselineLevel`); `InformationSystem.impact_c/i/a` (+`ImpactLevel`). API: `GET/POST /baselines`, `GET /baselines/{id}`; `PUT /systems/{id}/categorization` (impacts→high-water-mark або профіль НД ТЗІ → `suggested_baseline_id`, human-in-the-loop). Сид: профілі НД ТЗІ (confidential 84 / service 97) → baselines. Фронт: сторінка «Базові набори» + блок категоризації на сторінці систем. Тести `test_baselines.py`. |
 | (цей) | **Багатий каталог НД ТЗІ (повний 800-53 Rev 5) + 3 профілі.** З Excel/Word користувача згенеровано єдиний каталог `nd-tzi-3-6-006-24` — **1189 заходів** (текст + рекомендації), ієрархія базовий→посилення (`parent_id`), 20 родин. Три baselines: конфіденц. (84), ДСК/службова (97), **галузевий реєстровий (119)**. Додано `ProfileType.REGISTRY` + `BaselineLevel.ND_REGISTRY` (String-колонки → без міграції). Конвертер `backend/scripts/build_catalogs.py`; джерела в `docs/nd-tzi/`. Сід уміє безпечно оновити каталог за версією (refresh, якщо немає профілів). Старі тонкі ND-файли вилучено. Тести `test_phase4`/`test_baselines` оновлено. |
+| (цей) | **AI-сценарій 2: драфтинг наративів §9.** `POST /api/ai/draft-narrative` (kind=ssp_control|policy): локальний LLM генерує чернетку опису впровадження SSP-контролю або тексту політики; опційне RAG-заземлення; запис у `AISuggestion` (provenance, kind=`draft_*`). `POST /api/ai/suggestions/{id}/accept` (human-in-the-loop). Фронт: кнопка «✨ AI-чернетка» в модалці контролю SSP (заповнює наратив для перевірки). Тести `test_ai_draft.py` (мок провайдера). НЕ змінює артефакт автоматично. |
 | `b7c8b9c` | **Інкр.4 «Авторозрахунок ризику + повний OSCAL + EN-каталог» (без міграції).** (4B) `oscal.build_catalog_oscal` (групи-родини, ієрархія, ODP) + `build_profile_oscal` (include-controls, set-parameters, tailoring); `GET /frameworks/{id}/oscal`, `GET /profiles/{id}/oscal` (винесено `_resolve`). (4C-data) англ. каталог `nist-800-53-r5-en` (1189) через `build_catalogs.build_english_catalog`. (4A) `services/risk_calc.py` + `POST /risks/{id}/recalc-residual` (прев'ю/apply, мультиІКС найгірший, підлога 1, запис в історію). Фронт: OSCAL-кнопки (Каталоги/Профілі), «Авторозрахунок залишкового» на ризику. Тести `test_oscal_export`, `test_en_catalog`, `test_risk_calc`. |
 | (цей) | **Інкр.3 «Оцінювання (800-53A) + ConMon» (ревізія `0008`).** Моделі `Assessment` + `AssessmentResult` (satisfied/other-than-satisfied/not-assessed); розширено `Evidence` (`source`, `automated`, nullable `implementation_id`, `system_id`, `requirement_id`). API: `app/api/assessments.py` (генерація з профілю, оцінка контролів, статус, **to-poam** для незадоволених) + `app/api/conmon.py` (`POST /api/ingest/evidence` за API-токеном `controls:write`; `GET /systems/{id}/conmon/health` — свіжі/прострочені(дрейф)/без доказів за контролями профілю). Фронт: сторінка «Оцінювання та ConMon» (здоров'я + оцінювання). Тести `test_assessment.py`, `test_conmon.py`. |
 | `c6103e2` | **Інкр.2A «SSP» (ревізія `0006`).** Моделі `SSP` (версіонування, lineage, draft/approved/superseded) + `SSPControl` (наратив, статус, відповідальний); `ControlImplementation.narrative`. API `app/api/ssp.py`: генерація з резолвленого профілю, редагування наративів (draft-only), approve, new-version, експорт **OSCAL** (system-security-plan) + XLSX. `app/services/oscal.py` (білдер OSCAL 1.1.2). Фронт: сторінка «SSP». Тести `test_ssp.py` (5). |
@@ -130,13 +132,14 @@ POA&M). Англійський каталог 800-53 завантажуєтьс�
 з записом в історію `RiskAssessment`, ручні оцінки не перетираються без виклику apply.
 
 ### Лишилось (опційно / за наявності файлів)
-- **EN-локалізація UI:** EN-каталог (дані) зроблено. Перемикач мови UI + переклад
-  ~25 сторінок — НЕ зроблено (узгоджується з користувачем; для укр. внутрішнього КСЗІ
-  цінність низька — кандидат на відкладення).
+- **EN-локалізація UI:** ВИРІШЕНО ПРОПУСТИТИ (україномовний внутрішній КСЗІ). EN-каталог
+  даних 800-53 завантажено — цього достатньо для OSCAL/NIST крос-референсу. Перемикач
+  мови додамо, лише якщо з'явиться реальний англомовний користувач.
 - **OSCAL-імпорт офіційного 800-53B** (low/moderate/high baselines) — коли користувач
   покладе файл у `docs/`. Тоді NIST-категоризація пропонуватиме ці baselines.
 - **PDF-експорт** RMF-артефактів (SSP/POA&M) — за потреби (інфра WeasyPrint у `reports.py`).
-- AI-сценарії 2–4 (драфтинг наративів SSP/політик; підказки мапінгу 800-53↔НД ТЗІ; агентні).
+- **AI-сценарій 3** (підказки мапінгу 800-53↔НД ТЗІ; ризик→рекомендовані контролі) та
+  **сценарій 4** (агентні). Сценарії 1–2 зроблено.
 
 ### AI-трек далі
 - **Сценарій 2:** драфтинг наративів (SSP-implementation, тексти політик) — human-in-the-loop.

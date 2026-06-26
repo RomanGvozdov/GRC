@@ -5,9 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
     ai,
+    assessments,
     audit,
     audits,
     baselines,
+    conmon,
     imports,
     my_tasks,
     poam,
@@ -86,6 +88,8 @@ api_routers = [
     profiles.router,
     ssp.router,
     poam.router,
+    assessments.router,
+    conmon.router,
     audits.router,
     policies.router,
     my_tasks.router,

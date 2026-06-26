@@ -534,6 +534,78 @@ class POAMFromProfileOut(BaseModel):
     items: list[POAMItemOut] = []
 
 
+# --- Оцінювання (800-53A) + ConMon (ТЗ §7) ---
+
+class AssessmentGenerateIn(BaseModel):
+    profile_id: int
+    title: str | None = Field(default=None, max_length=255)
+
+
+class AssessmentUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=255)
+    status: str | None = Field(default=None, pattern="^(planned|in_progress|completed)$")
+
+
+class AssessmentResultIn(BaseModel):
+    result: str = Field(pattern="^(not_assessed|satisfied|other_than_satisfied)$")
+    notes: str | None = None
+
+
+class AssessmentResultOut(ORMModel):
+    id: int
+    requirement: RequirementBrief
+    result: str
+    notes: str | None
+    assessed_at: datetime | None
+
+
+class AssessmentOut(ORMModel):
+    id: int
+    system_id: int
+    profile_id: int | None
+    title: str
+    status: str
+    assessor: UserBrief | None
+    created_at: datetime
+    completed_at: datetime | None
+    total: int = 0
+    satisfied: int = 0
+    other_than_satisfied: int = 0
+    not_assessed: int = 0
+
+
+class AssessmentDetailOut(AssessmentOut):
+    results: list[AssessmentResultOut] = []
+
+
+class EvidenceIngestIn(BaseModel):
+    system_id: int
+    requirement_code: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=500)
+    url: str | None = None
+    source: str = Field(default="scanner", max_length=32)
+    valid_until: date | None = None
+
+
+class ConMonControlOut(BaseModel):
+    requirement_id: int
+    code: str
+    title: str
+    state: str  # fresh / stale / none
+    evidence_count: int
+    latest_valid_until: date | None = None
+
+
+class ConMonHealthOut(BaseModel):
+    system_id: int
+    profile_id: int | None
+    total: int
+    fresh: int
+    stale: int
+    none: int
+    drift: list[ConMonControlOut] = []  # контролі з простроченими доказами
+
+
 class EvidenceOut(ORMModel):
     id: int
     kind: str

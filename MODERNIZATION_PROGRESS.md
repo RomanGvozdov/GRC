@@ -7,10 +7,10 @@
 ## TL;DR для наступного чату
 
 - Працюємо в гілці **`claude/awesome-planck-76efci`**.
-- Тести: **66 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
-- Alembic head = **`0007`**. Наступна ревізія схеми має бути **`0008`**.
-- **Інкремент 2 (SSP + POA&M) — зроблено.** Наступне — Інкремент 3 (оцінювання
-  800-53A + ConMon + авто-докази).
+- Тести: **70 pytest** (SQLite), усі зелені. Фронтенд збирається без помилок.
+- Alembic head = **`0008`**. Наступна ревізія схеми має бути **`0009`**.
+- **Інкремент 3 (оцінювання 800-53A + ConMon) — зроблено.** Наступне — Інкремент 4
+  (авторозрахунок ризику + повний OSCAL на всіх межах + EN-локалізація).
 - **Каталог НД ТЗІ — це тепер повний 800-53 Rev 5 (1189 заходів, багатий текст)** з трьома
   профілями (конфіденц./ДСК/реєстри). На розгорнутому сервері старий тонкий каталог
   оновиться автоматично при рестарті (refresh за версією); орфанний `nd-tzi-3-6-006-24-full`
@@ -52,6 +52,7 @@
 | `318ee2a` | **UI «Скинути пароль» для адміна** на сторінці «Користувачі» (модалка → `PATCH /users/{id} {password}`, ≥12 символів). Усі сесії користувача анулюються (`token_version`). Тест `test_password_reset.py`. |
 | `e5ace39` | **Інкр.1, зріз «Baseline + категоризація ІКС» (ревізія `0004`).** Моделі `Baseline`/`BaselineItem` (+`BaselineLevel`); `InformationSystem.impact_c/i/a` (+`ImpactLevel`). API: `GET/POST /baselines`, `GET /baselines/{id}`; `PUT /systems/{id}/categorization` (impacts→high-water-mark або профіль НД ТЗІ → `suggested_baseline_id`, human-in-the-loop). Сид: профілі НД ТЗІ (confidential 84 / service 97) → baselines. Фронт: сторінка «Базові набори» + блок категоризації на сторінці систем. Тести `test_baselines.py`. |
 | (цей) | **Багатий каталог НД ТЗІ (повний 800-53 Rev 5) + 3 профілі.** З Excel/Word користувача згенеровано єдиний каталог `nd-tzi-3-6-006-24` — **1189 заходів** (текст + рекомендації), ієрархія базовий→посилення (`parent_id`), 20 родин. Три baselines: конфіденц. (84), ДСК/службова (97), **галузевий реєстровий (119)**. Додано `ProfileType.REGISTRY` + `BaselineLevel.ND_REGISTRY` (String-колонки → без міграції). Конвертер `backend/scripts/build_catalogs.py`; джерела в `docs/nd-tzi/`. Сід уміє безпечно оновити каталог за версією (refresh, якщо немає профілів). Старі тонкі ND-файли вилучено. Тести `test_phase4`/`test_baselines` оновлено. |
+| (цей) | **Інкр.3 «Оцінювання (800-53A) + ConMon» (ревізія `0008`).** Моделі `Assessment` + `AssessmentResult` (satisfied/other-than-satisfied/not-assessed); розширено `Evidence` (`source`, `automated`, nullable `implementation_id`, `system_id`, `requirement_id`). API: `app/api/assessments.py` (генерація з профілю, оцінка контролів, статус, **to-poam** для незадоволених) + `app/api/conmon.py` (`POST /api/ingest/evidence` за API-токеном `controls:write`; `GET /systems/{id}/conmon/health` — свіжі/прострочені(дрейф)/без доказів за контролями профілю). Фронт: сторінка «Оцінювання та ConMon» (здоров'я + оцінювання). Тести `test_assessment.py`, `test_conmon.py`. |
 | `c6103e2` | **Інкр.2A «SSP» (ревізія `0006`).** Моделі `SSP` (версіонування, lineage, draft/approved/superseded) + `SSPControl` (наратив, статус, відповідальний); `ControlImplementation.narrative`. API `app/api/ssp.py`: генерація з резолвленого профілю, редагування наративів (draft-only), approve, new-version, експорт **OSCAL** (system-security-plan) + XLSX. `app/services/oscal.py` (білдер OSCAL 1.1.2). Фронт: сторінка «SSP». Тести `test_ssp.py` (5). |
 | (цей) | **Інкр.2B «POA&M» (ревізія `0007`).** Моделі `POAMItem` (статус/критичність/джерело/відповідальний/термін) + `POAMMilestone`. API `app/api/poam.py`: CRUD пунктів, контрольні точки, **генерація з прогалин профілю** (`from-profile/{id}` — непокриті/частково покриті контролі, дедуплікація), експорт OSCAL (plan-of-action-and-milestones) + XLSX. Фронт: сторінка «POA&M». Тести `test_poam.py` (3). |
 | (цей) | **Інкр.1, зріз «Profile + tailoring» (ревізія `0005`).** Моделі `Profile` (статус draft/approved/superseded, версіонування, lineage), `ProfileControl` (included/origin), `TailoringDecision` (**justification NOT NULL** + валідатор проти пробілів → 422), `ProfileParameterValue` (ODP), `Overlay`/`OverlayItem`. API (`app/api/profiles.py`): `POST /systems/{id}/profiles` (генерація з baseline), `GET /systems/{id}/profiles`, `GET /profiles/{id}`, `POST /profiles/{id}/tailoring` (add/remove/modify_param, лише draft інакше 409), `/approve`, `/new-version` (клон + superseded), `GET /profiles/{id}/resolved` (включені контролі + резолвлені ODP), overlays CRUD + `apply-overlay`. Фронт: сторінка «Цільові профілі» (майстер: генерація → tailoring з обґрунтуванням → затвердження → нова версія; вкладки Контролі/Резолвлене/Рішення). Тести `test_profiles.py` (8). |
@@ -112,15 +113,15 @@ POA&M — вручну або з прогалин профілю; обидва �
 SSP/POA&M поки не робив (XLSX+OSCAL покривають потребу; PDF — за потреби, інфра WeasyPrint
 є у `reports.py`).
 
-### → НАСТУПНЕ: Інкремент 3 — Оцінювання (800-53A) + ConMon + авто-докази (ТЗ §7, ревізія `0008`)
-`Assessment` (оцінювання профілю/SSP), `AssessmentResult` (satisfied/other-than-satisfied
-на контроль); `Evidence.source/expires_at/automated`; дрейф (протерміновані докази) +
-дашборд здоров'я; `POST /api/ingest/evidence` за API-токеном (авто-докази зі сканерів/CIS).
-Джерело контролів для оцінювання — резолвлений профіль / SSP. Критерії §7.
+### Зроблено: Інкремент 3 — Оцінювання (800-53A) + ConMon (ревізія `0008`)
+Реалізовано (рядок у таблиці «Зроблено»). RMF-петля замкнена: профіль → SSP →
+оцінювання → POA&M; ConMon приймає авто-докази й рахує дрейф. `valid_until` слугує
+як `expires_at`. PDF-експорт артефактів і повний OSCAL profile/catalog — за потреби.
 
-### Інкремент 4 — Авторозрахунок ризику + повний OSCAL + EN-локалізація (ТЗ §8)
-Зв'язок ризик↔контролі для авторозрахунку; повний OSCAL на всіх межах;
-англійська локалізація UI (зараз усе укр.).
+### → НАСТУПНЕ: Інкремент 4 — Авторозрахунок ризику + повний OSCAL + EN-локалізація (ТЗ §8, ревізія `0009`)
+Зв'язок ризик↔контролі (профілю/оцінювання) для авторозрахунку залишкового ризику;
+повний OSCAL на всіх межах (catalog/profile, не лише SSP/POA&M); англійська локалізація
+UI (EN-каталог 800-53 з Excel уже є в `docs/`, лишилось завантажити та переключати мову).
 
 ### AI-трек далі
 - **Сценарій 2:** драфтинг наративів (SSP-implementation, тексти політик) — human-in-the-loop.

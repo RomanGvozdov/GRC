@@ -41,6 +41,12 @@ from app.models.risks import (
     risk_level_label,
 )
 from app.models.ai import AISuggestion
+from app.models.assessment import (
+    Assessment,
+    AssessmentResult,
+    AssessmentResultValue,
+    AssessmentStatus,
+)
 from app.models.baselines import Baseline, BaselineItem, BaselineLevel
 from app.models.profiles import (
     ControlOrigin,
@@ -75,6 +81,10 @@ __all__ = [
     "AISuggestion",
     "APIToken",
     "ActionStatus",
+    "Assessment",
+    "AssessmentResult",
+    "AssessmentResultValue",
+    "AssessmentStatus",
     "Baseline",
     "BaselineItem",
     "BaselineLevel",

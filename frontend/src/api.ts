@@ -299,6 +299,57 @@ export interface POAMFromProfile {
   items: POAMItem[];
 }
 
+// --- Оцінювання (800-53A) + ConMon (ТЗ §7) ---
+
+export type AssessmentStatus = "planned" | "in_progress" | "completed";
+export type AssessmentResultValue = "not_assessed" | "satisfied" | "other_than_satisfied";
+
+export interface AssessmentResult {
+  id: number;
+  requirement: RequirementBrief;
+  result: AssessmentResultValue;
+  notes: string | null;
+  assessed_at: string | null;
+}
+
+export interface Assessment {
+  id: number;
+  system_id: number;
+  profile_id: number | null;
+  title: string;
+  status: AssessmentStatus;
+  assessor: UserBrief | null;
+  created_at: string;
+  completed_at: string | null;
+  total: number;
+  satisfied: number;
+  other_than_satisfied: number;
+  not_assessed: number;
+}
+
+export interface AssessmentDetail extends Assessment {
+  results: AssessmentResult[];
+}
+
+export interface ConMonControl {
+  requirement_id: number;
+  code: string;
+  title: string;
+  state: string;
+  evidence_count: number;
+  latest_valid_until: string | null;
+}
+
+export interface ConMonHealth {
+  system_id: number;
+  profile_id: number | null;
+  total: number;
+  fresh: number;
+  stale: number;
+  none: number;
+  drift: ConMonControl[];
+}
+
 export interface ControlBrief {
   id: number;
   code: string;

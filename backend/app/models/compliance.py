@@ -143,14 +143,24 @@ class Evidence(Base):
     __tablename__ = "evidence"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    implementation_id: Mapped[int] = mapped_column(
+    # implementation_id — для ручних доказів впровадження; для авто-доказів ConMon
+    # (ТЗ §7) доказ прив'язується напряму до system_id + requirement_id.
+    implementation_id: Mapped[int | None] = mapped_column(
         ForeignKey("control_implementations.id", ondelete="CASCADE"), index=True
+    )
+    system_id: Mapped[int | None] = mapped_column(
+        ForeignKey("systems.id", ondelete="CASCADE"), index=True
+    )
+    requirement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("requirements.id", ondelete="SET NULL"), index=True
     )
     kind: Mapped[str] = mapped_column(String(16))  # file / link
     name: Mapped[str] = mapped_column(String(500))
     url: Mapped[str | None] = mapped_column(Text)  # для kind=link
     file_path: Mapped[str | None] = mapped_column(Text)  # для kind=file
-    valid_until: Mapped[date | None] = mapped_column(Date)
+    valid_until: Mapped[date | None] = mapped_column(Date)  # expires_at
+    source: Mapped[str] = mapped_column(String(32), default="manual")  # manual/scanner/cis/api
+    automated: Mapped[bool] = mapped_column(Boolean, default=False)
     uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 

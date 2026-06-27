@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Картка готовності ІКС до авторизації{% endblock %}
+{% block meta %}
+ІКС: {{ system.name }} ({{ system.code }}) · Сформовано: {{ today }}
+{% endblock %}
+{% block content %}
+{% set verdict_label = {"authorized": "Готова до авторизації", "conditional": "Умовно готова", "not_ready": "Не готова"} %}
+{% set verdict_key = {"authorized": "implemented", "conditional": "partial", "not_ready": "not_implemented"} %}
+<h2>Вердикт:
+  <span class="badge {{ verdict_key[verdict] }}">{{ verdict_label[verdict] }}</span>
+</h2>
+
+<table>
+  <thead><tr><th>Критерій</th><th>Стан</th></tr></thead>
+  <tbody>
+    {% set ok = {True: "Так", False: "Ні"} %}
+    <tr><td>Цільовий профіль затверджено</td>
+      <td><span class="badge {{ 'implemented' if checks.profile_approved else 'not_implemented' }}">{{ ok[checks.profile_approved] }}</span></td></tr>
+    <tr><td>SSP затверджено</td>
+      <td><span class="badge {{ 'implemented' if checks.ssp_approved else 'not_implemented' }}">{{ ok[checks.ssp_approved] }}</span></td></tr>
+    <tr><td>Оцінювання проведено</td>
+      <td><span class="badge {{ 'implemented' if checks.assessed else 'not_implemented' }}">{{ ok[checks.assessed] }}</span></td></tr>
+    <tr><td>Немає відкритих пунктів POA&amp;M</td>
+      <td><span class="badge {{ 'implemented' if checks.no_open_poam else 'not_implemented' }}">{{ ok[checks.no_open_poam] }}</span></td></tr>
+    <tr><td>Немає дрейфу доказів (ConMon)</td>
+      <td><span class="badge {{ 'implemented' if checks.no_drift else 'not_implemented' }}">{{ ok[checks.no_drift] }}</span></td></tr>
+  </tbody>
+</table>
+
+<h2>Показники</h2>
+<table>
+  <tbody>
+    <tr><td>Цільовий профіль</td>
+      <td>{% if profile %}v{{ profile.version }} ({{ profile.status }}), {{ profile.controls|length }} контролів{% else %}—{% endif %}</td></tr>
+    <tr><td>SSP — впроваджено контролів</td>
+      <td>{% if ssp %}{{ ssp_impl }} / {{ ssp_total }} (v{{ ssp.version }}, {{ ssp.status }}){% else %}—{% endif %}</td></tr>
+    <tr><td>Оцінювання — задоволено</td>
+      <td>{% if assessment %}{{ a_sat }} / {{ a_total }} ({{ assessment.status }}){% else %}—{% endif %}</td></tr>
+    <tr><td>Відкритих пунктів POA&amp;M</td><td>{{ poam_open }}</td></tr>
+    <tr><td>Прострочених доказів (дрейф)</td><td>{{ stale }}</td></tr>
+  </tbody>
+</table>
+{% endblock %}

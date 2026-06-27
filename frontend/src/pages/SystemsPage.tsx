@@ -66,6 +66,23 @@ export default function SystemsPage() {
   const [agentResult, setAgentResult] = useState<AgentBootstrapResult | null>(null);
   const [agentBusy, setAgentBusy] = useState<number | null>(null);
 
+  async function downloadReadiness(system: System) {
+    setError("");
+    try {
+      const { data } = await api.get(`/reports/system/${system.id}/readiness`, {
+        responseType: "blob",
+      });
+      const href = URL.createObjectURL(data as Blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `readiness-${system.code}.pdf`;
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
   async function runAgent(system: System) {
     if (!window.confirm(
       `AI підготує чернетки RMF для «${system.name}» (профіль, SSP, наративи, POA&M). ` +
@@ -247,6 +264,13 @@ export default function SystemsPage() {
                       onClick={() => void runAgent(system)}
                     >
                       ✨ AI RMF
+                    </Button>
+                    <Button
+                      size="compact-xs"
+                      variant="subtle"
+                      onClick={() => void downloadReadiness(system)}
+                    >
+                      Готовність
                     </Button>
                     <Button
                       size="compact-xs"

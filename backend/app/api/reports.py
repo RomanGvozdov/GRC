@@ -1,10 +1,11 @@
 import io
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from jinja2 import Environment, PackageLoader, select_autoescape
-from sqlalchemy import select
+from openpyxl import Workbook
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 from weasyprint import HTML
 
@@ -21,12 +22,23 @@ from app.core.deps import require_permission
 require_reports = require_permission("reports", "read")
 from app.database import get_db
 from app.models import (
+    Assessment,
+    AssessmentResult,
     Audit,
     Control,
+    ControlParameter,
+    Evidence,
     Finding,
     Framework,
+    InformationSystem,
+    POAMItem,
+    Profile,
+    ProfileControl,
+    ProfileParameterValue,
     Requirement,
     Risk,
+    SSP,
+    SSPControl,
     User,
     risk_level,
     risk_level_label,
@@ -281,4 +293,182 @@ def statement_of_applicability(
         f"soa_{framework.code}_{date.today().isoformat()}.pdf",
         framework=framework,
         rows=rows,
+    )
+
+
+# --- RMF-звітність за профілем/ІКС (ТЗ §6/§8) ---
+
+def _xlsx(headers: list[str], rows: list[list], sheet: str, filename: str) -> StreamingResponse:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet
+    ws.append(headers)
+    for row in rows:
+        ws.append(row)
+    out = io.BytesIO()
+    wb.save(out)
+    return StreamingResponse(
+        io.BytesIO(out.getvalue()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _latest_ssp_status(db: Session, profile_id: int) -> dict[int, str]:
+    """requirement_id → статус впровадження з останнього SSP профілю."""
+    ssp = db.scalar(
+        select(SSP).where(SSP.profile_id == profile_id)
+        .order_by(SSP.id.desc()).limit(1)
+        .options(selectinload(SSP.controls))
+    )
+    if ssp is None:
+        return {}
+    return {c.requirement_id: c.implementation_status for c in ssp.controls}
+
+
+def _soa_rows(db: Session, profile: Profile) -> list[dict]:
+    impl_by_req = _latest_ssp_status(db, profile.id)
+    pv_map = {pv.parameter_id: pv.value for pv in profile.parameter_values}
+    # обґрунтування tailoring за вимогою (останнє рішення)
+    just_by_req: dict[int, str] = {}
+    for d in profile.decisions:
+        if d.requirement_id:
+            just_by_req[d.requirement_id] = d.justification
+    rows = []
+    for pc in profile.controls:
+        req = pc.requirement
+        params = []
+        for p in req.parameters:
+            val = pv_map.get(p.id, p.default_value)
+            org = bool((p.constraints or {}).get("org_defined"))
+            if org and not val:
+                params.append(f"{p.label}: ⚠ потребує визначення")
+            elif val:
+                params.append(f"{p.label}: {val}")
+        rows.append({
+            "code": req.code,
+            "title": req.title,
+            "included": "Так" if pc.included else "Ні",
+            "included_key": "implemented" if pc.included else "not_applicable",
+            "origin": "Доданий" if pc.origin == "added" else "Baseline",
+            "status": IMPL_UA.get(impl_by_req.get(req.id, ""), "—"),
+            "status_key": impl_by_req.get(req.id, "none"),
+            "justification": just_by_req.get(req.id, ""),
+            "params": params,
+        })
+    return rows
+
+
+def _load_profile_for_report(db: Session, profile_id: int) -> Profile:
+    profile = db.scalar(
+        select(Profile).where(Profile.id == profile_id).options(
+            selectinload(Profile.controls).selectinload(ProfileControl.requirement)
+            .selectinload(Requirement.parameters),
+            selectinload(Profile.parameter_values),
+            selectinload(Profile.decisions),
+            selectinload(Profile.system),
+        )
+    )
+    if profile is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Профіль не знайдено")
+    return profile
+
+
+@router.get("/profile/{profile_id}/soa")
+def profile_soa(
+    profile_id: int,
+    fmt: str = Query(default="pdf", pattern="^(pdf|xlsx)$"),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_reports),
+):
+    """Декларація застосовності (SoA) за цільовим профілем ІКС: контролі (включено/
+    виключено), походження, статус впровадження, ODP-значення, обґрунтування."""
+    profile = _load_profile_for_report(db, profile_id)
+    rows = _soa_rows(db, profile)
+    system = profile.system
+    name = f"soa_profile_{profile_id}_{date.today().isoformat()}"
+    if fmt == "xlsx":
+        xlsx_rows = [
+            [r["code"], r["title"], r["included"], r["origin"], r["status"],
+             "; ".join(r["params"]), r["justification"]]
+            for r in rows
+        ]
+        return _xlsx(
+            ["Контроль", "Назва", "Застосовно", "Походження", "Статус впровадження",
+             "ODP-параметри", "Обґрунтування"],
+            xlsx_rows, "SoA", f"{name}.xlsx",
+        )
+    summary = {
+        "total": len(rows),
+        "included": sum(1 for r in rows if r["included"] == "Так"),
+        "excluded": sum(1 for r in rows if r["included"] == "Ні"),
+        "added": sum(1 for r in rows if r["origin"] == "Доданий"),
+    }
+    return _pdf(
+        "soa_profile.html", f"{name}.pdf",
+        profile=profile, system=system, rows=rows, summary=summary,
+    )
+
+
+def _readiness_data(db: Session, system: InformationSystem) -> dict:
+    profile = db.scalar(
+        select(Profile).where(Profile.system_id == system.id, Profile.status != "superseded")
+        .order_by(Profile.id.desc()).limit(1).options(selectinload(Profile.controls))
+    )
+    ssp = db.scalar(
+        select(SSP).where(SSP.system_id == system.id, SSP.status != "superseded")
+        .order_by(SSP.id.desc()).limit(1).options(selectinload(SSP.controls))
+    )
+    assessment = db.scalar(
+        select(Assessment).where(Assessment.system_id == system.id)
+        .order_by(Assessment.id.desc()).limit(1).options(selectinload(Assessment.results))
+    )
+    poam_open = db.scalar(
+        select(func.count(POAMItem.id)).where(
+            POAMItem.system_id == system.id, POAMItem.status != "completed"
+        )
+    ) or 0
+    stale = db.scalar(
+        select(func.count(Evidence.id)).where(
+            Evidence.system_id == system.id, Evidence.valid_until.isnot(None),
+            Evidence.valid_until < date.today(),
+        )
+    ) or 0
+
+    ssp_impl = sum(1 for c in ssp.controls if c.implementation_status == "implemented") if ssp else 0
+    ssp_total = len(ssp.controls) if ssp else 0
+    a_sat = sum(1 for r in assessment.results if r.result == "satisfied") if assessment else 0
+    a_total = len(assessment.results) if assessment else 0
+
+    checks = {
+        "profile_approved": bool(profile and profile.status == "approved"),
+        "ssp_approved": bool(ssp and ssp.status == "approved"),
+        "assessed": bool(assessment and assessment.status == "completed"),
+        "no_open_poam": poam_open == 0,
+        "no_drift": stale == 0,
+    }
+    passed = sum(checks.values())
+    verdict = ("authorized" if passed == len(checks)
+               else "conditional" if passed >= 3 else "not_ready")
+    return {
+        "profile": profile, "ssp": ssp, "ssp_impl": ssp_impl, "ssp_total": ssp_total,
+        "assessment": assessment, "a_sat": a_sat, "a_total": a_total,
+        "poam_open": poam_open, "stale": stale, "checks": checks, "verdict": verdict,
+    }
+
+
+@router.get("/system/{system_id}/readiness")
+def system_readiness(
+    system_id: int, db: Session = Depends(get_db), _: User = Depends(require_reports)
+):
+    """Картка готовності ІКС до авторизації (RMF readiness): профіль → SSP →
+    оцінювання → POA&M → ConMon, з підсумковим вердиктом."""
+    system = db.get(InformationSystem, system_id)
+    if system is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Систему не знайдено")
+    data = _readiness_data(db, system)
+    return _pdf(
+        "readiness.html",
+        f"readiness_{system.code}_{date.today().isoformat()}.pdf",
+        system=system, **data,
     )

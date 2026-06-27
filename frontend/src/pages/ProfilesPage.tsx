@@ -329,6 +329,20 @@ export default function ProfilesPage() {
                   >
                     OSCAL
                   </Button>
+                  <Button
+                    size="xs"
+                    variant="default"
+                    onClick={() => void downloadFile(`/reports/profile/${detail.id}/soa`, `soa-${detail.id}.pdf`)}
+                  >
+                    SoA PDF
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="default"
+                    onClick={() => void downloadFile(`/reports/profile/${detail.id}/soa?fmt=xlsx`, `soa-${detail.id}.xlsx`)}
+                  >
+                    SoA XLSX
+                  </Button>
                   {isDraft && (
                     <>
                       <Button size="xs" variant="default" onClick={() => void openAddControl()}>

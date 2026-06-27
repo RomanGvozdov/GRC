@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Group,
   Loader,
   Modal,
@@ -71,6 +72,62 @@ export default function ProfilesPage() {
   const [tailorRequirement, setTailorRequirement] = useState<number | null>(null);
   const [tailorJustification, setTailorJustification] = useState("");
   const [catalogReqs, setCatalogReqs] = useState<Requirement[]>([]);
+
+  // Заповнення org-defined ODP-параметрів
+  const [paramEdits, setParamEdits] = useState<Record<number, string>>({});
+
+  // Власний захід захисту
+  const [customOpen, setCustomOpen] = useState(false);
+  const [ccCode, setCcCode] = useState("");
+  const [ccTitle, setCcTitle] = useState("");
+  const [ccDesc, setCcDesc] = useState("");
+  const [ccJust, setCcJust] = useState("");
+  const [ccParams, setCcParams] = useState<
+    { label: string; default_value: string; org_defined: boolean }[]
+  >([]);
+
+  async function saveParam(parameterId: number, value: string) {
+    if (!detail || !value.trim()) return;
+    try {
+      await api.put(`/profiles/${detail.id}/parameters/${parameterId}`, { value });
+      await loadDetail(detail.id);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+
+  async function addCustomControl() {
+    if (!detail || !ccCode.trim() || !ccTitle.trim() || !ccJust.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/profiles/${detail.id}/custom-control`, {
+        code: ccCode,
+        title: ccTitle,
+        description: ccDesc || null,
+        justification: ccJust,
+        parameters: ccParams
+          .filter((p) => p.label.trim())
+          .map((p) => ({
+            label: p.label,
+            default_value: p.default_value || null,
+            org_defined: p.org_defined,
+          })),
+      });
+      setCustomOpen(false);
+      setCcCode("");
+      setCcTitle("");
+      setCcDesc("");
+      setCcJust("");
+      setCcParams([]);
+      await loadDetail(detail.id);
+      reloadList();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const loadDetail = useCallback(async (id: number) => {
     const { data } = await api.get<ProfileDetail>(`/profiles/${id}`);
@@ -277,6 +334,9 @@ export default function ProfilesPage() {
                       <Button size="xs" variant="default" onClick={() => void openAddControl()}>
                         Додати контроль
                       </Button>
+                      <Button size="xs" variant="default" onClick={() => setCustomOpen(true)}>
+                        Власний захід
+                      </Button>
                       <Button size="xs" color="green" onClick={() => void approve()} loading={busy}>
                         Затвердити
                       </Button>
@@ -364,11 +424,52 @@ export default function ProfilesPage() {
                         {c.code} — {c.title}
                       </Text>
                       {c.parameters.length > 0 && (
-                        <Stack gap={2} mt={4}>
+                        <Stack gap={6} mt={6}>
                           {c.parameters.map((p) => (
-                            <Text key={p.parameter_id} size="xs" c="dimmed">
-                              {p.label ?? p.key}: <strong>{p.value ?? "—"}</strong>
-                            </Text>
+                            <Group key={p.parameter_id} gap="xs" align="center" wrap="nowrap">
+                              <Badge
+                                size="xs"
+                                variant="light"
+                                color={p.org_defined ? "blue" : "teal"}
+                              >
+                                {p.org_defined ? "орг." : "НД ТЗІ"}
+                              </Badge>
+                              <Text size="xs" style={{ flexShrink: 0, maxWidth: 280 }}>
+                                {p.label ?? p.key}
+                              </Text>
+                              {isDraft && p.org_defined ? (
+                                <Group gap={4} wrap="nowrap" style={{ flexGrow: 1 }}>
+                                  <TextInput
+                                    size="xs"
+                                    placeholder={p.needs_input ? "потребує визначення" : ""}
+                                    value={paramEdits[p.parameter_id] ?? p.value ?? ""}
+                                    onChange={(e) =>
+                                      setParamEdits((m) => ({
+                                        ...m,
+                                        [p.parameter_id]: e.currentTarget.value,
+                                      }))
+                                    }
+                                    style={{ flexGrow: 1 }}
+                                  />
+                                  <Button
+                                    size="compact-xs"
+                                    variant="subtle"
+                                    onClick={() =>
+                                      void saveParam(
+                                        p.parameter_id,
+                                        paramEdits[p.parameter_id] ?? p.value ?? "",
+                                      )
+                                    }
+                                  >
+                                    OK
+                                  </Button>
+                                </Group>
+                              ) : (
+                                <Text size="xs" c={p.value ? undefined : "red"}>
+                                  <strong>{p.value ?? "потребує визначення"}</strong>
+                                </Text>
+                              )}
+                            </Group>
                           ))}
                         </Stack>
                       )}
@@ -473,6 +574,113 @@ export default function ProfilesPage() {
             disabled={!tailorRequirement || !tailorJustification.trim()}
           >
             Зберегти рішення
+          </Button>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={customOpen}
+        onClose={() => setCustomOpen(false)}
+        title="Власний захід захисту (оформлення базового профілю)"
+        size="lg"
+      >
+        <Stack>
+          <Group grow>
+            <TextInput
+              label="Код"
+              placeholder="напр. ДОД-1"
+              value={ccCode}
+              onChange={(e) => setCcCode(e.currentTarget.value)}
+              required
+            />
+            <TextInput
+              label="Назва заходу"
+              value={ccTitle}
+              onChange={(e) => setCcTitle(e.currentTarget.value)}
+              required
+            />
+          </Group>
+          <Textarea
+            label="Текст заходу (з підпунктами)"
+            description="Напр. ДОД-1.1 …; ДОД-1.2 …"
+            value={ccDesc}
+            onChange={(e) => setCcDesc(e.currentTarget.value)}
+            minRows={4}
+            autosize
+          />
+          <div>
+            <Group justify="space-between" mb={4}>
+              <Text size="sm" fw={500}>
+                ODP-параметри
+              </Text>
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                onClick={() =>
+                  setCcParams((p) => [...p, { label: "", default_value: "", org_defined: true }])
+                }
+              >
+                + параметр
+              </Button>
+            </Group>
+            <Stack gap="xs">
+              {ccParams.map((p, i) => (
+                <Group key={i} gap="xs" wrap="nowrap" align="center">
+                  <TextInput
+                    placeholder="підпис параметра"
+                    value={p.label}
+                    onChange={(e) =>
+                      setCcParams((arr) =>
+                        arr.map((x, j) =>
+                          j === i ? { ...x, label: e.currentTarget.value } : x,
+                        ),
+                      )
+                    }
+                    style={{ flexGrow: 1 }}
+                  />
+                  <TextInput
+                    placeholder="значення (опц.)"
+                    value={p.default_value}
+                    onChange={(e) =>
+                      setCcParams((arr) =>
+                        arr.map((x, j) =>
+                          j === i
+                            ? { ...x, default_value: e.currentTarget.value }
+                            : x,
+                        ),
+                      )
+                    }
+                    w={150}
+                  />
+                  <Checkbox
+                    label="орг."
+                    checked={p.org_defined}
+                    onChange={(e) =>
+                      setCcParams((arr) =>
+                        arr.map((x, j) =>
+                          j === i ? { ...x, org_defined: e.currentTarget.checked } : x,
+                        ),
+                      )
+                    }
+                  />
+                </Group>
+              ))}
+            </Stack>
+          </div>
+          <Textarea
+            label="Обґрунтування"
+            description="Обов'язкове — фіксується в журналі рішень tailoring"
+            value={ccJust}
+            onChange={(e) => setCcJust(e.currentTarget.value)}
+            minRows={2}
+            required
+          />
+          <Button
+            onClick={() => void addCustomControl()}
+            loading={busy}
+            disabled={!ccCode.trim() || !ccTitle.trim() || !ccJust.trim()}
+          >
+            Додати захід у профіль
           </Button>
         </Stack>
       </Modal>

@@ -12,6 +12,7 @@ from app.models import (
     Baseline,
     BaselineItem,
     BaselineLevel,
+    ControlParameter,
     Framework,
     ProfileControl,
     Requirement,
@@ -80,7 +81,8 @@ def _parent_code(code: str) -> str:
 
 
 def _load_requirements(db: Session, framework: Framework, requirements: list[dict]) -> None:
-    """Створює вимоги каталогу та лінкує посилення на базові контролі (parent_id)."""
+    """Створює вимоги каталогу, лінкує посилення (parent_id) та ODP-параметри."""
+    params_by_code: dict[str, list[dict]] = {}
     for req in requirements:
         profiles = req.get("profiles") or []
         db.add(
@@ -94,6 +96,8 @@ def _load_requirements(db: Session, framework: Framework, requirements: list[dic
                 profile_descriptions=req.get("profile_descriptions"),
             )
         )
+        if req.get("parameters"):
+            params_by_code[req["code"]] = req["parameters"]
     db.flush()
     by_code = {
         r.code: r.id
@@ -105,6 +109,18 @@ def _load_requirements(db: Session, framework: Framework, requirements: list[dic
         parent = _parent_code(code)
         if parent != code and parent in by_code:
             db.get(Requirement, rid).parent_id = by_code[parent]
+    # ODP-параметри: org-defined (без default) + прописані значення (default_value)
+    for code, params in params_by_code.items():
+        for p in params:
+            db.add(
+                ControlParameter(
+                    requirement_id=by_code[code],
+                    key=p["key"],
+                    label=p.get("label"),
+                    default_value=p.get("default_value"),
+                    constraints={"org_defined": bool(p.get("org_defined"))},
+                )
+            )
 
 
 def _framework_in_use(db: Session, framework_id: int) -> bool:
@@ -192,8 +208,53 @@ def seed_baselines(db: Session) -> None:
         logger.info("Створено baseline %s (%d заходів)", name, len(matching))
 
 
+def seed_catalog_parameters(db: Session) -> None:
+    """Бекфіл ODP-параметрів у наявні каталоги (ідемпотентно, без чіпання профілів).
+
+    Потрібно, коли каталог уже засіяний і refresh пропущено (бо на ньому є профілі):
+    параметри з seed-JSON додаються до вимог, де їх ще немає.
+    """
+    data_dir = Path(__file__).parent / "seed_data"
+    for path in sorted(data_dir.glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        params_by_code = {
+            r["code"]: r["parameters"] for r in data["requirements"] if r.get("parameters")
+        }
+        if not params_by_code:
+            continue
+        fw = db.scalar(select(Framework).where(Framework.code == data["code"]))
+        if fw is None:
+            continue
+        added = 0
+        for code, params in params_by_code.items():
+            req = db.scalar(
+                select(Requirement).where(
+                    Requirement.framework_id == fw.id, Requirement.code == code
+                )
+            )
+            if req is None:
+                continue
+            has = db.scalar(
+                select(ControlParameter.id)
+                .where(ControlParameter.requirement_id == req.id).limit(1)
+            )
+            if has:
+                continue
+            for p in params:
+                db.add(ControlParameter(
+                    requirement_id=req.id, key=p["key"], label=p.get("label"),
+                    default_value=p.get("default_value"),
+                    constraints={"org_defined": bool(p.get("org_defined"))},
+                ))
+                added += 1
+        if added:
+            db.commit()
+            logger.info("Бекфіл ODP-параметрів для %s: +%d", data["code"], added)
+
+
 def run_seed(db: Session) -> None:
     seed_admin(db)
     seed_categories(db)
     seed_frameworks(db)
     seed_baselines(db)
+    seed_catalog_parameters(db)

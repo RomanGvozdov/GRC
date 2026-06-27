@@ -207,6 +207,8 @@ export interface ResolvedParameter {
   key: string;
   label: string | null;
   value: string | null;
+  org_defined: boolean;
+  needs_input: boolean;
 }
 
 export interface ResolvedControl {

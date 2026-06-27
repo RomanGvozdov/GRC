@@ -33,6 +33,8 @@ from app.models import (
 )
 from app.schemas import (
     ApplyOverlayIn,
+    CustomControlIn,
+    ParamValueIn,
     OverlayDetailOut,
     OverlayIn,
     OverlayItemOut,
@@ -134,9 +136,27 @@ def generate_profile(
                 origin=ControlOrigin.BASELINE.value,
             )
         )
+    # Передзаповнення ODP: прописані значення (default_value) з каталогу → у профіль.
+    # org-defined параметри (без default) лишаються для заповнення організацією.
+    prefilled = 0
+    if requirement_ids:
+        prescribed = db.scalars(
+            select(ControlParameter).where(
+                ControlParameter.requirement_id.in_(requirement_ids),
+                ControlParameter.default_value.isnot(None),
+            )
+        ).all()
+        for p in prescribed:
+            db.add(
+                ProfileParameterValue(
+                    profile_id=profile.id, parameter_id=p.id, value=p.default_value
+                )
+            )
+            prefilled += 1
     log_action(
         db, actor, "create", "profile", profile.id,
-        {"system": system.code, "baseline_id": baseline.id, "controls": len(requirement_ids)},
+        {"system": system.code, "baseline_id": baseline.id,
+         "controls": len(requirement_ids), "prefilled_params": prefilled},
     )
     db.commit()
     return _detail(db, profile.id)
@@ -269,6 +289,127 @@ def tailor_profile(
 
 # --- Затвердження / версіонування ---
 
+CUSTOM_FRAMEWORK_CODE = "nd-tzi-custom"
+
+
+def _custom_framework(db: Session) -> Framework:
+    fw = db.scalar(select(Framework).where(Framework.code == CUSTOM_FRAMEWORK_CODE))
+    if fw is None:
+        fw = Framework(
+            code=CUSTOM_FRAMEWORK_CODE,
+            name="Додані заходи захисту (розширення НД ТЗІ)",
+            version="custom",
+            is_custom=True,
+        )
+        db.add(fw)
+        db.flush()
+    return fw
+
+
+@router.post("/profiles/{profile_id}/custom-control", response_model=ProfileDetailOut,
+             status_code=status.HTTP_201_CREATED)
+def add_custom_control(
+    profile_id: int,
+    body: CustomControlIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+):
+    """Додає ВЛАСНИЙ захід захисту в оформленні базових профілів (код, назва, текст
+    із підпунктами, ODP-параметри) до чернеткового профілю. Захід зберігається у
+    каталозі «Додані заходи захисту» і одразу включається у профіль (origin=added)."""
+    profile = _get_draft(db, profile_id)
+    fw = _custom_framework(db)
+
+    import re
+    if db.scalar(
+        select(Requirement).where(
+            Requirement.framework_id == fw.id, Requirement.code == body.code
+        )
+    ):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Захід з кодом «{body.code}» уже існує"
+        )
+
+    fam = re.match(r"^([A-Za-z]{2})-", body.code)
+    requirement = Requirement(
+        framework_id=fw.id,
+        code=body.code,
+        title=body.title,
+        description=body.description,
+        family=fam.group(1).upper() if fam else None,
+    )
+    db.add(requirement)
+    db.flush()
+
+    cid = body.code.lower().replace("(", ".").replace(")", "")
+    for i, p in enumerate(body.parameters, start=1):
+        db.add(ControlParameter(
+            requirement_id=requirement.id,
+            key=f"{cid}_odp.{i:02d}",
+            label=p.label,
+            default_value=p.default_value,
+            constraints={"org_defined": p.org_defined},
+        ))
+
+    db.add(ProfileControl(
+        profile_id=profile.id, requirement_id=requirement.id,
+        included=True, origin=ControlOrigin.ADDED.value,
+    ))
+    # передзаповнити прописані значення нового заходу
+    for p in body.parameters:
+        if p.default_value is not None:
+            param = db.scalar(
+                select(ControlParameter).where(
+                    ControlParameter.requirement_id == requirement.id,
+                    ControlParameter.label == p.label,
+                )
+            )
+            if param:
+                db.add(ProfileParameterValue(
+                    profile_id=profile.id, parameter_id=param.id, value=p.default_value
+                ))
+    db.add(TailoringDecision(
+        profile_id=profile.id, requirement_id=requirement.id,
+        action=TailoringAction.ADD.value, justification=body.justification,
+        created_by_id=actor.id,
+    ))
+    log_action(db, actor, "add_custom_control", "profile", profile.id,
+               {"code": body.code})
+    db.commit()
+    return _detail(db, profile.id)
+
+
+@router.put("/profiles/{profile_id}/parameters/{parameter_id}", response_model=ProfileDetailOut)
+def set_parameter_value(
+    profile_id: int,
+    parameter_id: int,
+    body: ParamValueIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+):
+    """Заповнення org-defined ODP-параметра (НЕ відхилення — обґрунтування не потрібне).
+    Зміна прописаного значення-мінімуму — через tailoring modify_param із обґрунтуванням."""
+    profile = _get_draft(db, profile_id)
+    param = db.get(ControlParameter, parameter_id)
+    if param is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Параметр не знайдено")
+    existing = db.scalar(
+        select(ProfileParameterValue).where(
+            ProfileParameterValue.profile_id == profile.id,
+            ProfileParameterValue.parameter_id == param.id,
+        )
+    )
+    if existing:
+        existing.value = body.value
+    else:
+        db.add(ProfileParameterValue(
+            profile_id=profile.id, parameter_id=param.id, value=body.value
+        ))
+    log_action(db, actor, "set_param", "profile", profile.id, {"parameter_id": param.id})
+    db.commit()
+    return _detail(db, profile.id)
+
+
 @router.post("/profiles/{profile_id}/approve", response_model=ProfileOut)
 def approve_profile(
     profile_id: int, db: Session = Depends(get_db), actor: User = Depends(require_admin)
@@ -341,6 +482,15 @@ def new_version(
 
 # --- Резолвлене подання (для SSP/звітів) ---
 
+def _resolved_param(p, pv_map: dict) -> ResolvedParameterOut:
+    org_defined = bool((p.constraints or {}).get("org_defined"))
+    value = pv_map.get(p.id, p.default_value)
+    return ResolvedParameterOut(
+        parameter_id=p.id, key=p.key, label=p.label, value=value,
+        org_defined=org_defined, needs_input=org_defined and not value,
+    )
+
+
 def _resolve(db: Session, profile_id: int) -> ResolvedProfileOut | None:
     """Резолвлене подання профілю (спільне для /resolved і /oscal)."""
     profile = db.scalar(
@@ -378,12 +528,7 @@ def _resolve(db: Session, profile_id: int) -> ResolvedProfileOut | None:
                 description=description,
                 origin=pc.origin,
                 parameters=[
-                    ResolvedParameterOut(
-                        parameter_id=p.id,
-                        key=p.key,
-                        label=p.label,
-                        value=pv_map.get(p.id, p.default_value),
-                    )
+                    _resolved_param(p, pv_map)
                     for p in req.parameters
                 ],
             )

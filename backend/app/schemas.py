@@ -359,6 +359,8 @@ class ResolvedParameterOut(BaseModel):
     key: str
     label: str | None = None
     value: str | None = None  # значення профілю або default
+    org_defined: bool = False  # True — заповнює організація (немає прописаного значення)
+    needs_input: bool = False  # org_defined і значення ще не задано
 
 
 class ResolvedControlOut(BaseModel):
@@ -415,6 +417,33 @@ class OverlayDetailOut(OverlayOut):
 
 class ApplyOverlayIn(BaseModel):
     justification: str = Field(min_length=1)
+
+    @field_validator("justification")
+    @classmethod
+    def _justification_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Обґрунтування обов'язкове")
+        return v.strip()
+
+
+class ParamValueIn(BaseModel):
+    value: str = Field(min_length=1)
+
+
+class CustomParamIn(BaseModel):
+    label: str = Field(min_length=1, max_length=500)
+    default_value: str | None = None       # задано → прописане значення
+    org_defined: bool = True               # True → заповнює організація
+
+
+class CustomControlIn(BaseModel):
+    """Власний (доданий) захід захисту в оформленні базових профілів."""
+
+    code: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=500)
+    description: str | None = None          # текст заходу з підпунктами
+    justification: str = Field(min_length=1)
+    parameters: list[CustomParamIn] = []
 
     @field_validator("justification")
     @classmethod

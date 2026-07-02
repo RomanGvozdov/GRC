@@ -12,6 +12,9 @@
 
 ## Швидкий старт (Docker)
 
+> Повна інструкція з розгортання, оновлення, увімкнення AI, бекапів і типових
+> проблем — **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+
 ```bash
 cp .env.example .env
 # заповніть POSTGRES_PASSWORD, SECRET_KEY (openssl rand -hex 32) та ADMIN_PASSWORD

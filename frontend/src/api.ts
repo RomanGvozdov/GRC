@@ -352,6 +352,25 @@ export interface ConMonHealth {
   drift: ConMonControl[];
 }
 
+// --- SIEM Wazuh ---
+
+export interface WazuhSummary {
+  days: number;
+  min_level: number;
+  total: number;
+  by_level: Record<string, number>;
+  top_rules: { rule: string; count: number; max_level: number }[];
+  top_agents: { agent: string; count: number }[];
+  per_day: { date: string; count: number }[];
+}
+
+export interface WazuhAnalyzeResult {
+  summary: WazuhSummary;
+  narrative: string | null;
+  suggestion_id: number | null;
+  evidence_id: number | null;
+}
+
 // --- Авторозрахунок ризику (ТЗ §8) ---
 
 export interface RiskControlEffectiveness {

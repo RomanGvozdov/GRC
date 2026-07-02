@@ -25,6 +25,7 @@ import {
   type AssessmentResult,
   type ConMonHealth,
   type Profile,
+  type WazuhAnalyzeResult,
 } from "../api";
 import { useFetch } from "../components/shared";
 import { useSystem } from "../systemContext";
@@ -65,6 +66,32 @@ export default function AssessmentPage() {
 
   const [noteCtl, setNoteCtl] = useState<AssessmentResult | null>(null);
   const [noteText, setNoteText] = useState("");
+
+  // SIEM Wazuh
+  const [siemDays, setSiemDays] = useState<string | null>("7");
+  const [siem, setSiem] = useState<WazuhAnalyzeResult | null>(null);
+  const [siemBusy, setSiemBusy] = useState(false);
+
+  async function runSiem(saveEvidence: boolean) {
+    setSiemBusy(true);
+    setError("");
+    try {
+      const { data } = await api.post<WazuhAnalyzeResult>("/integrations/wazuh/analyze", {
+        days: Number(siemDays ?? 7),
+        system_id: systemId,
+        save_evidence: saveEvidence,
+      });
+      setSiem(data);
+      if (saveEvidence && data.evidence_id) {
+        setInfo(`Аналіз збережено як доказ AU-6 (№${data.evidence_id})`);
+        reloadHealth();
+      }
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setSiemBusy(false);
+    }
+  }
 
   const loadDetail = useCallback(async (id: number) => {
     const { data } = await api.get<AssessmentDetail>(`/assessments/${id}`);
@@ -212,6 +239,101 @@ export default function AssessmentPage() {
               Авто-докази надсилають сканери/CIS через <code>POST /api/ingest/evidence</code>{" "}
               за API-токеном (доступ «контролі: запис»).
             </Text>
+          </>
+        )}
+      </Card>
+
+      {/* SIEM Wazuh: аналіз подій за період (контроль AU-6) */}
+      <Card withBorder mb="lg">
+        <Group justify="space-between" mb="xs">
+          <Title order={4}>SIEM Wazuh — аналіз подій</Title>
+          <Group gap="xs" align="end">
+            <Select
+              size="xs"
+              w={130}
+              label="Період"
+              data={[
+                { value: "1", label: "1 доба" },
+                { value: "7", label: "7 діб" },
+                { value: "30", label: "30 діб" },
+                { value: "90", label: "90 діб" },
+              ]}
+              value={siemDays}
+              onChange={setSiemDays}
+            />
+            <Button size="xs" onClick={() => void runSiem(false)} loading={siemBusy}>
+              Аналізувати
+            </Button>
+            {siem && (
+              <Button size="xs" variant="default" onClick={() => void runSiem(true)} loading={siemBusy}>
+                Зберегти як доказ AU-6
+              </Button>
+            )}
+          </Group>
+        </Group>
+        {!siem ? (
+          <Text size="sm" c="dimmed">
+            Запит іде напряму до Wazuh (менеджер + indexer) за налаштуваннями з{" "}
+            <code>.env</code>; сирі події не вивантажуються — лише агрегати.
+          </Text>
+        ) : (
+          <>
+            <SimpleGrid cols={4} mb="sm">
+              <div>
+                <Text size="xl" fw={700}>{siem.summary.total}</Text>
+                <Text size="xs" c="dimmed">подій за {siem.summary.days} діб (рівень ≥{siem.summary.min_level})</Text>
+              </div>
+              <div>
+                <Text size="xl" fw={700} c="blue">{siem.summary.by_level["low"] ?? 0}</Text>
+                <Text size="xs" c="dimmed">рівень до 7</Text>
+              </div>
+              <div>
+                <Text size="xl" fw={700} c="orange">{siem.summary.by_level["medium"] ?? 0}</Text>
+                <Text size="xs" c="dimmed">рівень 7–11</Text>
+              </div>
+              <div>
+                <Text size="xl" fw={700} c="red">{siem.summary.by_level["high"] ?? 0}</Text>
+                <Text size="xs" c="dimmed">рівень 12+</Text>
+              </div>
+            </SimpleGrid>
+            <SimpleGrid cols={2}>
+              <Table striped>
+                <Table.Thead>
+                  <Table.Tr><Table.Th>Топ-правила</Table.Th><Table.Th w={70}>Подій</Table.Th><Table.Th w={60}>Макс.</Table.Th></Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {siem.summary.top_rules.map((r) => (
+                    <Table.Tr key={r.rule}>
+                      <Table.Td>{r.rule}</Table.Td>
+                      <Table.Td>{r.count}</Table.Td>
+                      <Table.Td>
+                        <Badge size="xs" color={r.max_level >= 12 ? "red" : r.max_level >= 7 ? "orange" : "blue"} variant="light">
+                          {r.max_level}
+                        </Badge>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+              <Table striped>
+                <Table.Thead>
+                  <Table.Tr><Table.Th>Топ-агенти</Table.Th><Table.Th w={80}>Подій</Table.Th></Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {siem.summary.top_agents.map((a) => (
+                    <Table.Tr key={a.agent}>
+                      <Table.Td>{a.agent}</Table.Td>
+                      <Table.Td>{a.count}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </SimpleGrid>
+            {siem.narrative && (
+              <Alert color="grape" variant="light" mt="sm" title="Висновок AI-аналітика (чернетка)">
+                <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{siem.narrative}</Text>
+              </Alert>
+            )}
           </>
         )}
       </Card>

@@ -50,6 +50,21 @@ class Settings(BaseSettings):
     ai_embed_model: str = ""  # напр. bge-m3
     ai_embed_dim: int = 1024  # розмірність ембедінгів (bge-m3 = 1024)
 
+    # Інтеграція з SIEM Wazuh (опційно). Вимкнено за замовчуванням.
+    # Менеджер (порт 55000) — статус/агенти; indexer/OpenSearch (порт 9200) —
+    # події wazuh-alerts-* за період. Рекомендовано read-only користувачів.
+    wazuh_enabled: bool = False
+    wazuh_api_url: str = ""  # напр. https://wazuh.local:55000
+    wazuh_api_user: str = ""
+    wazuh_api_password: str = ""
+    wazuh_indexer_url: str = ""  # напр. https://wazuh.local:9200
+    wazuh_indexer_user: str = ""
+    wazuh_indexer_password: str = ""
+    # TLS: у Wazuh типово самопідписані сертифікати. Найкраще — вказати CA-файл;
+    # verify=false лишайте тільки для ізольованого внутрішнього сегмента.
+    wazuh_verify_ssl: bool = True
+    wazuh_ca_bundle: str = ""  # шлях до CA-сертифіката всередині контейнера
+
 
 @lru_cache
 def get_settings() -> Settings:

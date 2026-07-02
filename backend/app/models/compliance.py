@@ -165,4 +165,5 @@ class Evidence(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     implementation = relationship("ControlImplementation", back_populates="evidence")
+    requirement = relationship("Requirement")
     uploaded_by = relationship("User")

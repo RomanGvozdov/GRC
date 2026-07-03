@@ -134,11 +134,13 @@ class WazuhClient:
             raise WazuhError(f"Запит до Wazuh indexer не вдався: {exc}") from exc
 
         aggs = raw.get("aggregations", {})
-        total = raw.get("hits", {}).get("total", {})
+        total_raw = raw.get("hits", {}).get("total", {})
+        # OpenSearch: {"value": N, "relation": "eq"}; старі ES можуть віддати число
+        total = total_raw.get("value", 0) if isinstance(total_raw, dict) else int(total_raw or 0)
         return {
             "days": days,
             "min_level": min_level,
-            "total": total.get("value", total if isinstance(total, int) else 0),
+            "total": total,
             "by_level": {
                 b["key"]: b["doc_count"]
                 for b in aggs.get("by_level", {}).get("buckets", [])
